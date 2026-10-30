@@ -2,8 +2,8 @@
  * server.js
  * ---------
  * HTTP server launcher for Ruhuna Smart Energy System Node.js backend.
- * Connects to MongoDB, bootstraps required user accounts, starts background
- * telemetry simulation, and listens on configured PORT.
+ * Connects to MongoDB, bootstraps required campus buildings and user accounts,
+ * starts background telemetry simulation, and listens on configured PORT.
  */
 
 const path = require('path');
@@ -13,6 +13,7 @@ const { connectDB } = require('./config/db');
 const User = require('./models/User');
 const EnergyReading = require('./models/EnergyReading');
 const { runSimulationCycle } = require('./simulator');
+const { initBuildings } = require('./init_db');
 
 const PORT = process.env.PORT || 5000;
 let simulatorIntervalId = null;
@@ -108,6 +109,7 @@ async function startTelemetrySimulator() {
 async function startServer() {
   try {
     await connectDB();
+    await initBuildings({ silent: true });
     await ensureDefaultUsers();
     await startTelemetrySimulator();
 
@@ -145,4 +147,4 @@ if (require.main === module) {
   startServer();
 }
 
-module.exports = { startServer, ensureDefaultUsers, startTelemetrySimulator };
+module.exports = { startServer, ensureDefaultUsers, startTelemetrySimulator, initBuildings };
