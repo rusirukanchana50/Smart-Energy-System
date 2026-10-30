@@ -30,6 +30,42 @@ function formatTimestamp(d) {
   return `${YYYY}-${MM}-${DD} ${hh}:${mm}:${ss}`;
 }
 
+const safeFixed = (val, decimals = 1) => (Number.isFinite(Number(val)) ? Number(val) : 0).toFixed(decimals);
+const coalesce = (val, decimals = 4) => (Number.isFinite(Number(val)) ? Number(Number(val).toFixed(decimals)) : 0);
+
+/**
+ * Parses query date boundaries safely, handling ISO strings, dates, and naive local times.
+ */
+function parseDateParam(val, isEnd = false) {
+  if (!val) return null;
+  if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+  const str = String(val).trim();
+  if (!str) return null;
+
+  // Date only format "YYYY-MM-DD"
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const timePart = isEnd ? '23:59:59.999+05:30' : '00:00:00.000+05:30';
+    const d = new Date(`${str}T${timePart}`);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // Already has timezone indicator (Z or +HH:MM or -HH:MM)
+  if (/Z$|[+-]\d{2}:?\d{2}$/i.test(str)) {
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // Naive datetime: "YYYY-MM-DDTHH:mm" or "YYYY-MM-DD HH:mm:ss" -> treat as Sri Lanka time (UTC+05:30)
+  const isoLike = str.includes('T') ? str : str.replace(' ', 'T');
+  const dWithOffset = new Date(isoLike.length === 16 ? `${isoLike}:00+05:30` : `${isoLike}+05:30`);
+  if (!isNaN(dWithOffset.getTime())) {
+    return dWithOffset;
+  }
+
+  const fallback = new Date(str);
+  return isNaN(fallback.getTime()) ? null : fallback;
+}
+
 /**
  * Parses timestamp string or Date object safely.
  */
@@ -37,21 +73,16 @@ function parseTimestampStr(val) {
   if (!val) return new Date();
   if (val instanceof Date) return val;
   const str = String(val).trim();
-  const d = new Date(str.includes('T') ? str : str.replace(' ', 'T'));
-  return isNaN(d.getTime()) ? new Date() : d;
+  const d = parseDateParam(str);
+  return d || new Date();
 }
 
 /**
  * Normalizes query string boundary timestamps into "YYYY-MM-DD HH:MM:SS".
  */
 function normalizeTimestamp(val, isEnd = false) {
-  if (!val || typeof val !== 'string' || !val.trim()) return null;
-  const str = val.trim();
-  if (str.length === 10 && /^\d{4}-\d{2}-\d{2}$/.test(str)) {
-    return isEnd ? `${str} 23:59:59` : `${str} 00:00:00`;
-  }
-  const d = new Date(str.includes('T') ? str : str.replace(' ', 'T'));
-  if (isNaN(d.getTime())) return null;
+  const d = parseDateParam(val, isEnd);
+  if (!d) return null;
   return formatTimestamp(d);
 }
 
@@ -232,13 +263,13 @@ async function getFilteredEnergyHistory(buildingId, start, end, limit = 2000, or
     }
   }
 
-  const normStart = normalizeTimestamp(start, false);
-  const normEnd = normalizeTimestamp(end, true);
+  const startDate = parseDateParam(start, false);
+  const endDate = parseDateParam(end, true);
 
-  if (normStart || normEnd) {
+  if (startDate || endDate) {
     query.timestamp = {};
-    if (normStart) query.timestamp.$gte = new Date(normStart);
-    if (normEnd) query.timestamp.$lte = new Date(normEnd);
+    if (startDate) query.timestamp.$gte = startDate;
+    if (endDate) query.timestamp.$lte = endDate;
   }
 
   const sortOrder = orderAsc ? 1 : -1;
@@ -324,8 +355,8 @@ function calculateBuildingAnalytics(readings) {
   const avgF = frequencies.reduce((a, b) => a + b, 0) / n;
 
   // Load Factor = Average Active Power / Peak Active Power
-  let loadFactor = peakP > 0 ? avgP / peakP : 0.0;
-  loadFactor = Math.max(0.0, Math.min(1.0, loadFactor));
+  let loadFactor = peakP > 0 ? (avgP / peakP) : 0.0;
+  loadFactor = Number.isFinite(loadFactor) ? Math.max(0.0, Math.min(1.0, loadFactor)) : 0.0;
 
   // Incremental energy integration with missing data gap handling
   let totalEnergyKwh = 0.0;
@@ -370,18 +401,21 @@ function calculateBuildingAnalytics(readings) {
  * Calculates electricity cost using the demonstration institutional two-part tariff model.
  */
 function calculateBuildingCost(totalEnergyKwh, peakDemandKw, durationSeconds = 86400, tariff = null) {
-  const energyRate = tariff ? Number(tariff.energy_rate_lkr_per_kwh) : 38.50;
-  const demandRate = tariff ? Number(tariff.demand_rate_lkr_per_kw) : 1450.00;
-  const fixedCharge = tariff ? Number(tariff.fixed_charge_lkr) : 3000.00;
+  const kwh = Number.isFinite(Number(totalEnergyKwh)) ? Number(totalEnergyKwh) : 0;
+  const peak = Number.isFinite(Number(peakDemandKw)) ? Number(peakDemandKw) : 0;
 
-  const periodDays = Math.max(durationSeconds / 86400.0, 0.001);
+  const energyRate = tariff && Number.isFinite(Number(tariff.energy_rate_lkr_per_kwh)) ? Number(tariff.energy_rate_lkr_per_kwh) : 38.50;
+  const demandRate = tariff && Number.isFinite(Number(tariff.demand_rate_lkr_per_kw)) ? Number(tariff.demand_rate_lkr_per_kw) : 1450.00;
+  const fixedCharge = tariff && Number.isFinite(Number(tariff.fixed_charge_lkr)) ? Number(tariff.fixed_charge_lkr) : 3000.00;
+
+  const periodDays = Math.max((Number(durationSeconds) || 86400.0) / 86400.0, 0.001);
   const periodScalingFraction = periodDays / 30.0;
 
   // 1. Energy Charge: active kWh * rate
-  const energyChargeLkr = totalEnergyKwh * energyRate;
+  const energyChargeLkr = kwh * energyRate;
 
   // 2. Demand Charge: peak kW * demand rate * fraction
-  const demandChargeLkr = peakDemandKw * demandRate * periodScalingFraction;
+  const demandChargeLkr = peak * demandRate * periodScalingFraction;
 
   // 3. Fixed Charge: monthly fixed charge * fraction
   const applicableFixedChargeLkr = fixedCharge * periodScalingFraction;
@@ -441,8 +475,8 @@ async function calculateBuildingEfficiency(readings, buildingInfo = null, settin
   const avgP = activePowers.reduce((a, b) => a + b, 0) / n;
   const peakP = Math.max(...activePowers);
   const avgPf = powerFactors.reduce((a, b) => a + b, 0) / n;
-  let loadFactor = peakP > 0 ? avgP / peakP : 0.0;
-  loadFactor = Math.max(0.0, Math.min(1.0, loadFactor));
+  let loadFactor = peakP > 0 ? (avgP / peakP) : 0.0;
+  loadFactor = Number.isFinite(loadFactor) ? Math.max(0.0, Math.min(1.0, loadFactor)) : 0.0;
 
   let totalEnergyKwh = 0.0;
   let afterHoursKwh = 0.0;
@@ -504,34 +538,34 @@ async function calculateBuildingEfficiency(readings, buildingInfo = null, settin
   const observations = [];
   if (loadFactor < 0.40 && peakP > 0) {
     observations.push(
-      `Low load factor detected (${loadFactor.toFixed(2)}). Peak demand (${peakP.toFixed(1)} kW) is significantly higher than average consumption (${avgP.toFixed(1)} kW), indicating high demand surges with low utilization.`
+      `Low load factor detected (${safeFixed(loadFactor, 2)}). Peak demand (${safeFixed(peakP, 1)} kW) is significantly higher than average consumption (${safeFixed(avgP, 1)} kW), indicating high demand surges with low utilization.`
     );
   }
 
   if (avgPf < 0.85) {
     observations.push(
-      `Poor average power factor (${avgPf.toFixed(3)}) below CEB threshold (0.85). Low-PF duration observed for ${lowPfMinutes.toFixed(1)} minutes (${lowPfReadings} cycles), indicating inductive motor loading.`
+      `Poor average power factor (${safeFixed(avgPf, 3)}) below CEB threshold (0.85). Low-PF duration observed for ${safeFixed(lowPfMinutes, 1)} minutes (${lowPfReadings} cycles), indicating inductive motor loading.`
     );
   } else if (lowPfMinutes > 10.0) {
     observations.push(
-      `Intermittent low power factor observed: PF fell below 0.85 for ${lowPfMinutes.toFixed(1)} minutes during the monitored window.`
+      `Intermittent low power factor observed: PF fell below 0.85 for ${safeFixed(lowPfMinutes, 1)} minutes during the monitored window.`
     );
   }
 
   if (afterHoursPct > 35.0) {
     observations.push(
-      `High after-hours energy proportion: ${afterHoursKwh.toFixed(2)} kWh (${afterHoursPct.toFixed(1)}% of total) was consumed outside faculty standard operating hours (08:00 - 17:00 / Weekends).`
+      `High after-hours energy proportion: ${safeFixed(afterHoursKwh, 2)} kWh (${safeFixed(afterHoursPct, 1)}% of total) was consumed outside faculty standard operating hours (08:00 - 17:00 / Weekends).`
     );
   } else if (afterHoursKwh > 0) {
     observations.push(
-      `After-hours energy consumed: ${afterHoursKwh.toFixed(2)} kWh (${afterHoursPct.toFixed(1)}% of total) outside operating hours.`
+      `After-hours energy consumed: ${safeFixed(afterHoursKwh, 2)} kWh (${safeFixed(afterHoursPct, 1)}% of total) outside operating hours.`
     );
   }
 
   const ratedPower = buildingInfo ? Number(buildingInfo.rated_power_kw) || 50.0 : 50.0;
   if (peakP > 0.90 * ratedPower) {
     observations.push(
-      `High peak active power demand: Peak reached ${peakP.toFixed(1)} kW (${((peakP / ratedPower) * 100.0).toFixed(1)}% of configured capacity ${ratedPower.toFixed(1)} kW).`
+      `High peak active power demand: Peak reached ${safeFixed(peakP, 1)} kW (${safeFixed((peakP / ratedPower) * 100.0, 1)}% of configured capacity ${safeFixed(ratedPower, 1)} kW).`
     );
   }
 
@@ -540,11 +574,11 @@ async function calculateBuildingEfficiency(readings, buildingInfo = null, settin
     const pDiffPct = ((avgP - baseAvgP) / baseAvgP) * 100.0;
     if (pDiffPct > 15.0) {
       observations.push(
-        `Elevated demand relative to historical baseline: Average power is +${pDiffPct.toFixed(1)}% higher than this building's long-term historical mean (${baseAvgP.toFixed(1)} kW).`
+        `Elevated demand relative to historical baseline: Average power is +${safeFixed(pDiffPct, 1)}% higher than this building's long-term historical mean (${safeFixed(baseAvgP, 1)} kW).`
       );
     } else if (pDiffPct < -15.0) {
       observations.push(
-        `Reduced demand relative to historical baseline: Average power is ${pDiffPct.toFixed(1)}% lower than this building's long-term historical mean (${baseAvgP.toFixed(1)} kW).`
+        `Reduced demand relative to historical baseline: Average power is ${safeFixed(pDiffPct, 1)}% lower than this building's long-term historical mean (${safeFixed(baseAvgP, 1)} kW).`
       );
     }
   }
@@ -624,14 +658,14 @@ async function getBuildingHistoricalBaseline(buildingId) {
  * Computes synchronized campus-wide electrical parameters across simultaneous readings.
  */
 async function getCampusSynchronizedMetrics(start, end) {
-  const normStart = normalizeTimestamp(start, false);
-  const normEnd = normalizeTimestamp(end, true);
+  const startDate = parseDateParam(start, false);
+  const endDate = parseDateParam(end, true);
 
   const query = {};
-  if (normStart || normEnd) {
+  if (startDate || endDate) {
     query.timestamp = {};
-    if (normStart) query.timestamp.$gte = new Date(normStart);
-    if (normEnd) query.timestamp.$lte = new Date(normEnd);
+    if (startDate) query.timestamp.$gte = startDate;
+    if (endDate) query.timestamp.$lte = endDate;
   }
 
   const readings = await EnergyReading.find(query).sort({ timestamp: 1 }).lean();
@@ -642,14 +676,14 @@ async function getCampusSynchronizedMetrics(start, end) {
       peak_active_power_kw: 0.0,
       load_factor: 0.0,
       load_factor_pct: 0.0,
-      avg_apparent_power_kva: null,
-      avg_reactive_power_kvar: null,
-      avg_power_factor: null,
-      min_power_factor: null,
-      avg_voltage: null,
-      min_voltage: null,
-      max_voltage: null,
-      avg_frequency: null
+      avg_apparent_power_kva: 0.0,
+      avg_reactive_power_kvar: 0.0,
+      avg_power_factor: 0.0,
+      min_power_factor: 0.0,
+      avg_voltage: 0.0,
+      min_voltage: 0.0,
+      max_voltage: 0.0,
+      avg_frequency: 0.0
     };
   }
 
@@ -689,8 +723,8 @@ async function getCampusSynchronizedMetrics(start, end) {
   const allPfs = readings.map((r) => Number(r.power_factor)).filter((x) => !isNaN(x));
   const minPf = allPfs.length > 0 ? Math.min(...allPfs) : avgPf;
 
-  let loadFactor = peakP > 0 ? avgP / peakP : 0.0;
-  loadFactor = Math.max(0.0, Math.min(1.0, loadFactor));
+  let loadFactor = peakP > 0 ? (avgP / peakP) : 0.0;
+  loadFactor = Number.isFinite(loadFactor) ? Math.max(0.0, Math.min(1.0, loadFactor)) : 0.0;
 
   const allV = readings.map((r) => Number(r.voltage)).filter((x) => !isNaN(x));
   const avgV = allV.length > 0 ? allV.reduce((a, b) => a + b, 0) / allV.length : 400.0;
@@ -732,6 +766,25 @@ async function getEnergyAnalytics(buildingId = 'all', start = null, end = null) 
     const readings = await getFilteredEnergyHistory(targetId, start, end, 5000, true);
     const stats = calculateBuildingAnalytics(readings);
 
+    const safeStats = {
+      readings_count: stats.readings_count || 0,
+      total_energy_kwh: coalesce(stats.total_energy_kwh, 4),
+      avg_active_power_kw: coalesce(stats.avg_active_power_kw, 2),
+      peak_active_power_kw: coalesce(stats.peak_active_power_kw, 2),
+      min_active_power_kw: coalesce(stats.min_active_power_kw, 2),
+      avg_apparent_power_kva: coalesce(stats.avg_apparent_power_kva, 2),
+      avg_reactive_power_kvar: coalesce(stats.avg_reactive_power_kvar, 2),
+      avg_power_factor: coalesce(stats.avg_power_factor, 4),
+      min_power_factor: coalesce(stats.min_power_factor, 4),
+      avg_voltage: coalesce(stats.avg_voltage, 2),
+      min_voltage: coalesce(stats.min_voltage, 2),
+      max_voltage: coalesce(stats.max_voltage, 2),
+      avg_current: coalesce(stats.avg_current, 2),
+      avg_frequency: coalesce(stats.avg_frequency, 3),
+      load_factor: coalesce(stats.load_factor, 4),
+      load_factor_pct: coalesce(stats.load_factor_pct, 2)
+    };
+
     return {
       mode: 'single',
       building_id: selectedBldg ? selectedBldg._id.toString() : bStr,
@@ -739,7 +792,7 @@ async function getEnergyAnalytics(buildingId = 'all', start = null, end = null) 
       building_name: selectedBldg ? selectedBldg.name : 'Unknown',
       start: normalizeTimestamp(start),
       end: normalizeTimestamp(end, true),
-      analytics: stats
+      analytics: safeStats
     };
   }
 
@@ -757,19 +810,19 @@ async function getEnergyAnalytics(buildingId = 'all', start = null, end = null) 
       building_id: b._id.toString(),
       building_code: b.code,
       building_name: b.name,
-      total_energy_kwh: bStats.total_energy_kwh,
-      peak_active_power_kw: bStats.peak_active_power_kw,
-      avg_active_power_kw: bStats.avg_active_power_kw,
-      avg_power_factor: bStats.avg_power_factor,
-      load_factor: bStats.load_factor,
-      load_factor_pct: bStats.load_factor_pct,
-      readings_count: bStats.readings_count
+      total_energy_kwh: coalesce(bStats.total_energy_kwh, 4),
+      peak_active_power_kw: coalesce(bStats.peak_active_power_kw, 2),
+      avg_active_power_kw: coalesce(bStats.avg_active_power_kw, 2),
+      avg_power_factor: coalesce(bStats.avg_power_factor, 4),
+      load_factor: coalesce(bStats.load_factor, 4),
+      load_factor_pct: coalesce(bStats.load_factor_pct, 2),
+      readings_count: bStats.readings_count || 0
     });
 
-    campusTotalEnergy += bStats.total_energy_kwh;
+    campusTotalEnergy += (bStats.total_energy_kwh || 0);
     if (bStats.readings_count > 0) {
-      campusActivePowers.push(bStats.avg_active_power_kw);
-      if (bStats.avg_power_factor !== null) {
+      campusActivePowers.push(bStats.avg_active_power_kw || 0);
+      if (bStats.avg_power_factor !== null && Number.isFinite(bStats.avg_power_factor)) {
         campusPfs.push(bStats.avg_power_factor);
       }
     }
@@ -777,21 +830,21 @@ async function getEnergyAnalytics(buildingId = 'all', start = null, end = null) 
 
   const campusAvgPower = campusActivePowers.length > 0 ? campusActivePowers.reduce((a, b) => a + b, 0) : 0.0;
   const campusAvgPf = campusPfs.length > 0 ? campusPfs.reduce((a, b) => a + b, 0) / campusPfs.length : 0.0;
-  const campusPeakPower = comparison.length > 0 ? Math.max(...comparison.map((c) => c.peak_active_power_kw)) : 0.0;
-  const sumPeakPowers = comparison.reduce((a, b) => a + b.peak_active_power_kw, 0);
-  const campusLoadFactor = sumPeakPowers > 0 ? campusAvgPower / sumPeakPowers : 0.0;
+  const campusPeakPower = comparison.length > 0 ? Math.max(...comparison.map((c) => c.peak_active_power_kw || 0), 0) : 0.0;
+  const sumPeakPowers = comparison.reduce((a, b) => a + (b.peak_active_power_kw || 0), 0);
+  const campusLoadFactor = sumPeakPowers > 0 ? (campusAvgPower / sumPeakPowers) : 0.0;
 
   return {
     mode: 'comparison',
     start: normalizeTimestamp(start),
     end: normalizeTimestamp(end, true),
     campus_summary: {
-      total_energy_kwh: Math.round(campusTotalEnergy * 1000) / 1000,
-      avg_active_power_kw: Math.round(campusAvgPower * 100) / 100,
-      peak_active_power_kw: Math.round(campusPeakPower * 100) / 100,
-      avg_power_factor: Math.round(campusAvgPf * 1000) / 1000,
-      load_factor: Math.round(campusLoadFactor * 1000) / 1000,
-      load_factor_pct: Math.round(campusLoadFactor * 1000) / 10,
+      total_energy_kwh: coalesce(campusTotalEnergy, 4),
+      avg_active_power_kw: coalesce(campusAvgPower, 2),
+      peak_active_power_kw: coalesce(campusPeakPower, 2),
+      avg_power_factor: coalesce(campusAvgPf, 4),
+      load_factor: coalesce(campusLoadFactor, 4),
+      load_factor_pct: coalesce(campusLoadFactor * 100, 2),
       building_count: allBuildings.length
     },
     comparison
@@ -862,29 +915,29 @@ async function getCostAndEfficiencyAnalytics(buildingId = 'all', start = null, e
       building_code: b.code,
       building_name: b.name,
       rated_power_kw: Number(b.rated_power_kw) || 50.0,
-      total_kwh: bEff.total_energy_kwh,
-      estimated_cost_lkr: bCost.estimated_total_cost_lkr,
-      energy_charge_lkr: bCost.estimated_energy_charge_lkr,
-      demand_charge_lkr: bCost.estimated_demand_charge_lkr,
-      peak_demand_kw: bEff.peak_demand_kw,
-      avg_demand_kw: bEff.avg_demand_kw,
-      load_factor: bEff.load_factor,
-      load_factor_pct: bEff.load_factor_pct,
-      avg_power_factor: bEff.avg_power_factor,
-      after_hours_kwh: bEff.after_hours_kwh,
-      after_hours_pct: bEff.after_hours_pct,
-      efficiency_score: bEff.efficiency_score,
-      performance_status: bEff.performance_status,
-      readings_count: bEff.readings_count,
-      engineering_observations: bEff.engineering_observations
+      total_kwh: coalesce(bEff.total_energy_kwh, 4),
+      estimated_cost_lkr: coalesce(bCost.estimated_total_cost_lkr, 2),
+      energy_charge_lkr: coalesce(bCost.estimated_energy_charge_lkr, 2),
+      demand_charge_lkr: coalesce(bCost.estimated_demand_charge_lkr, 2),
+      peak_demand_kw: coalesce(bEff.peak_demand_kw, 2),
+      avg_demand_kw: coalesce(bEff.avg_demand_kw, 2),
+      load_factor: coalesce(bEff.load_factor, 4),
+      load_factor_pct: coalesce(bEff.load_factor_pct, 2),
+      avg_power_factor: coalesce(bEff.avg_power_factor, 4),
+      after_hours_kwh: coalesce(bEff.after_hours_kwh, 4),
+      after_hours_pct: coalesce(bEff.after_hours_pct, 2),
+      efficiency_score: coalesce(bEff.efficiency_score, 2),
+      performance_status: bEff.performance_status || 'NO_DATA',
+      readings_count: bEff.readings_count || 0,
+      engineering_observations: bEff.engineering_observations || []
     });
 
-    campusTotalKwh += bEff.total_energy_kwh;
-    campusAfterHoursKwh += bEff.after_hours_kwh;
-    campusTotalCost += bCost.estimated_total_cost_lkr;
-    campusEnergyCharges += bCost.estimated_energy_charge_lkr;
-    campusDemandCharges += bCost.estimated_demand_charge_lkr;
-    campusFixedCharges += bCost.estimated_fixed_charge_lkr;
+    campusTotalKwh += (bEff.total_energy_kwh || 0);
+    campusAfterHoursKwh += (bEff.after_hours_kwh || 0);
+    campusTotalCost += (bCost.estimated_total_cost_lkr || 0);
+    campusEnergyCharges += (bCost.estimated_energy_charge_lkr || 0);
+    campusDemandCharges += (bCost.estimated_demand_charge_lkr || 0);
+    campusFixedCharges += (bCost.estimated_fixed_charge_lkr || 0);
   }
 
   // Rank buildings by efficiency score descending
@@ -902,25 +955,25 @@ async function getCostAndEfficiencyAnalytics(buildingId = 'all', start = null, e
     end: normEnd,
     tariff,
     campus_summary: {
-      total_kwh: Math.round(campusTotalKwh * 1000) / 1000,
-      estimated_cost_lkr: Math.round(campusTotalCost * 100) / 100,
-      estimated_energy_charge_lkr: Math.round(campusEnergyCharges * 100) / 100,
-      estimated_demand_charge_lkr: Math.round(campusDemandCharges * 100) / 100,
-      estimated_fixed_charge_lkr: Math.round(campusFixedCharges * 100) / 100,
-      peak_demand_kw: syncMetrics.peak_active_power_kw,
-      avg_demand_kw: syncMetrics.avg_active_power_kw,
-      avg_apparent_power_kva: syncMetrics.avg_apparent_power_kva,
-      avg_reactive_power_kvar: syncMetrics.avg_reactive_power_kvar,
-      load_factor: syncMetrics.load_factor,
-      load_factor_pct: syncMetrics.load_factor_pct,
-      avg_power_factor: syncMetrics.avg_power_factor,
-      min_power_factor: syncMetrics.min_power_factor,
-      avg_voltage: syncMetrics.avg_voltage,
-      min_voltage: syncMetrics.min_voltage,
-      max_voltage: syncMetrics.max_voltage,
-      avg_frequency: syncMetrics.avg_frequency,
-      after_hours_kwh: Math.round(campusAfterHoursKwh * 1000) / 1000,
-      after_hours_pct: Math.round(campusAfterHoursPct * 10) / 10,
+      total_kwh: coalesce(campusTotalKwh, 4),
+      estimated_cost_lkr: coalesce(campusTotalCost, 2),
+      estimated_energy_charge_lkr: coalesce(campusEnergyCharges, 2),
+      demand_charge_lkr: coalesce(campusDemandCharges, 2),
+      fixed_charge_lkr: coalesce(campusFixedCharges, 2),
+      peak_demand_kw: coalesce(syncMetrics.peak_active_power_kw, 2),
+      avg_demand_kw: coalesce(syncMetrics.avg_active_power_kw, 2),
+      avg_apparent_power_kva: coalesce(syncMetrics.avg_apparent_power_kva, 2),
+      avg_reactive_power_kvar: coalesce(syncMetrics.avg_reactive_power_kvar, 2),
+      load_factor: coalesce(syncMetrics.load_factor, 4),
+      load_factor_pct: coalesce(syncMetrics.load_factor_pct, 2),
+      avg_power_factor: coalesce(syncMetrics.avg_power_factor, 4),
+      min_power_factor: coalesce(syncMetrics.min_power_factor, 4),
+      avg_voltage: coalesce(syncMetrics.avg_voltage, 2),
+      min_voltage: coalesce(syncMetrics.min_voltage, 2),
+      max_voltage: coalesce(syncMetrics.max_voltage, 2),
+      avg_frequency: coalesce(syncMetrics.avg_frequency, 3),
+      after_hours_kwh: coalesce(campusAfterHoursKwh, 4),
+      after_hours_pct: coalesce(campusAfterHoursPct, 2),
       building_count: allBuildings.length,
       is_estimate: true,
       disclaimer: 'Cost estimates use a configurable demonstration tariff model and are not an official CEB bill.'
@@ -966,10 +1019,12 @@ async function getComprehensiveEnergyReport(buildingId = 'all', start = null, en
     const alertQuery = {
       $or: [{ building_id: selectedBldg ? selectedBldg._id : targetId }, { building_code: selectedBldg ? selectedBldg.code : '' }]
     };
-    if (normStart || normEnd) {
+    const startDate = parseDateParam(start, false);
+    const endDate = parseDateParam(end, true);
+    if (startDate || endDate) {
       alertQuery.timestamp = {};
-      if (normStart) alertQuery.timestamp.$gte = new Date(normStart);
-      if (normEnd) alertQuery.timestamp.$lte = new Date(normEnd);
+      if (startDate) alertQuery.timestamp.$gte = startDate;
+      if (endDate) alertQuery.timestamp.$lte = endDate;
     }
 
     const [warningCount, criticalCount, totalAlertsCount, recentAlerts] = await Promise.all([
@@ -1041,10 +1096,12 @@ async function getComprehensiveEnergyReport(buildingId = 'all', start = null, en
   const rankedComparison = costEffRes.ranked_comparison;
 
   const campusAlertQuery = {};
-  if (normStart || normEnd) {
+  const campusStartDate = parseDateParam(start, false);
+  const campusEndDate = parseDateParam(end, true);
+  if (campusStartDate || campusEndDate) {
     campusAlertQuery.timestamp = {};
-    if (normStart) campusAlertQuery.timestamp.$gte = new Date(normStart);
-    if (normEnd) campusAlertQuery.timestamp.$lte = new Date(normEnd);
+    if (campusStartDate) campusAlertQuery.timestamp.$gte = campusStartDate;
+    if (campusEndDate) campusAlertQuery.timestamp.$lte = campusEndDate;
   }
 
   const [campusWarnings, campusCritical, totalCampusAlerts, recentCampusAlerts] = await Promise.all([
@@ -1057,23 +1114,23 @@ async function getComprehensiveEnergyReport(buildingId = 'all', start = null, en
   const campusObservations = [];
   if (campusSum.avg_power_factor !== null && campusSum.avg_power_factor < 0.85) {
     campusObservations.push(
-      `Poor campus-wide average power factor (${campusSum.avg_power_factor.toFixed(3)}) below CEB statutory minimum (0.85). Reactive current compensation recommended.`
+      `Poor campus-wide average power factor (${safeFixed(campusSum.avg_power_factor, 3)}) below CEB statutory minimum (0.85). Reactive current compensation recommended.`
     );
   }
   if (campusSum.after_hours_pct !== null && campusSum.after_hours_pct > 25.0) {
     campusObservations.push(
-      `Significant campus after-hours energy usage: ${campusSum.after_hours_kwh.toFixed(2)} kWh (${campusSum.after_hours_pct.toFixed(1)}% of campus consumption) occurred outside faculty operational hours.`
+      `Significant campus after-hours energy usage: ${safeFixed(campusSum.after_hours_kwh, 2)} kWh (${safeFixed(campusSum.after_hours_pct, 1)}% of campus consumption) occurred outside faculty operational hours.`
     );
   }
   const highestPeakB = comparison.length > 0 ? [...comparison].sort((a, b) => b.peak_demand_kw - a.peak_demand_kw)[0] : null;
   if (highestPeakB && highestPeakB.peak_demand_kw > 0) {
     campusObservations.push(
-      `High peak active demand contributor: ${highestPeakB.building_name} reached ${highestPeakB.peak_demand_kw.toFixed(1)} kW individual peak demand, driving facility demand charges.`
+      `High peak active demand contributor: ${highestPeakB.building_name} reached ${safeFixed(highestPeakB.peak_demand_kw, 1)} kW individual peak demand, driving facility demand charges.`
     );
   }
   if (campusSum.peak_demand_kw > 0 && campusSum.load_factor_pct !== null) {
     campusObservations.push(
-      `Coincident campus peak demand reached ${campusSum.peak_demand_kw.toFixed(1)} kW with an overall campus load factor of ${campusSum.load_factor_pct.toFixed(1)}%.`
+      `Coincident campus peak demand reached ${safeFixed(campusSum.peak_demand_kw, 1)} kW with an overall campus load factor of ${safeFixed(campusSum.load_factor_pct, 1)}%.`
     );
   }
   if (campusCritical > 0) {
@@ -1142,6 +1199,9 @@ async function getComprehensiveEnergyReport(buildingId = 'all', start = null, en
 }
 
 module.exports = {
+  safeFixed,
+  coalesce,
+  parseDateParam,
   formatTimestamp,
   parseTimestampStr,
   normalizeTimestamp,

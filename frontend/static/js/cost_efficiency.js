@@ -19,6 +19,14 @@ let chartCCost = null;
 let chartCPeak = null;
 let chartCAfter = null;
 
+const safeFixed = (val, decimals = 1) => (Number.isFinite(Number(val)) ? Number(val) : 0).toFixed(decimals);
+
+function toApiTimestamp(val) {
+  if (!val) return "";
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? val : d.toISOString();
+}
+
 // Palette for Buildings
 const BUILDING_COLORS = {
   "CEE":  "#38bdf8",
@@ -95,7 +103,9 @@ function setCostPreset(preset) {
  * Format numbers with comma grouping and fixed decimals
  */
 function formatNum(val, dec = 2) {
-  if (val === null || val === undefined || isNaN(val)) return "0.00";
+  if (val === null || val === undefined || isNaN(val) || !Number.isFinite(Number(val))) {
+    return (0).toFixed(dec);
+  }
   return Number(val).toLocaleString(undefined, {
     minimumFractionDigits: dec,
     maximumFractionDigits: dec
@@ -107,8 +117,10 @@ function formatNum(val, dec = 2) {
  */
 async function triggerCostEfficiency() {
   const bldgVal = document.getElementById("filterBuilding") ? document.getElementById("filterBuilding").value : "all";
-  const startVal = document.getElementById("filterStart") ? document.getElementById("filterStart").value : "";
-  const endVal = document.getElementById("filterEnd") ? document.getElementById("filterEnd").value : "";
+  const startRaw = document.getElementById("filterStart") ? document.getElementById("filterStart").value : "";
+  const endRaw = document.getElementById("filterEnd") ? document.getElementById("filterEnd").value : "";
+  const startVal = toApiTimestamp(startRaw);
+  const endVal = toApiTimestamp(endRaw);
 
   const alertBox = document.getElementById("costAlert");
   if (alertBox) alertBox.style.display = "none";
@@ -279,9 +291,9 @@ function renderObservations(bldgVal, compData, singleEff) {
     }
 
     // High peak contributor
-    const highestPeakBldg = comp.reduce((prev, curr) => (curr.peak_demand_kw > prev.peak_demand_kw) ? curr : prev, comp[0] || {});
-    if (highestPeakBldg && highestPeakBldg.peak_demand_kw > 0) {
-      observations.push(`Highest facility peak demand recorded at ${highestPeakBldg.building_name} (${highestPeakBldg.peak_demand_kw} kW), which represents the primary driver for maximum demand billing.`);
+    const highestPeakBldg = comp.reduce((prev, curr) => ((curr.peak_demand_kw || 0) > (prev.peak_demand_kw || 0)) ? curr : prev, comp[0] || {});
+    if (highestPeakBldg && Number(highestPeakBldg.peak_demand_kw) > 0) {
+      observations.push(`Highest facility peak demand recorded at ${highestPeakBldg.building_name} (${formatNum(highestPeakBldg.peak_demand_kw, 1)} kW), which represents the primary driver for maximum demand billing.`);
     }
 
     if (observations.length === 0) {

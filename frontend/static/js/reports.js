@@ -13,6 +13,14 @@
  * - Administrator demonstration tariff updates via /api/config/tariff
  */
 
+const safeFixed = (val, decimals = 1) => (Number.isFinite(Number(val)) ? Number(val) : 0).toFixed(decimals);
+
+function toApiTimestamp(val) {
+  if (!val) return "";
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? val : d.toISOString();
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   setupReportPresets();
   setReportPreset("24h");
@@ -80,7 +88,7 @@ function setReportPreset(preset) {
  * Returns '--' if val is null, undefined, or NaN, ensuring missing metrics are not disguised as 0.00
  */
 function formatNum(val, dec = 2, fallback = "--") {
-  if (val === null || val === undefined || isNaN(val)) return fallback;
+  if (val === null || val === undefined || isNaN(val) || !Number.isFinite(Number(val))) return fallback;
   return Number(val).toLocaleString(undefined, {
     minimumFractionDigits: dec,
     maximumFractionDigits: dec
@@ -92,8 +100,10 @@ function formatNum(val, dec = 2, fallback = "--") {
  */
 async function triggerGenerateReport() {
   const bldgVal = document.getElementById("reportBuilding") ? document.getElementById("reportBuilding").value : "all";
-  const startVal = document.getElementById("reportStart") ? document.getElementById("reportStart").value : "";
-  const endVal = document.getElementById("reportEnd") ? document.getElementById("reportEnd").value : "";
+  const startRaw = document.getElementById("reportStart") ? document.getElementById("reportStart").value : "";
+  const endRaw = document.getElementById("reportEnd") ? document.getElementById("reportEnd").value : "";
+  const startVal = toApiTimestamp(startRaw);
+  const endVal = toApiTimestamp(endRaw);
 
   const alertBox = document.getElementById("reportAlert");
   const loadingState = document.getElementById("reportLoadingState");
@@ -274,8 +284,10 @@ function renderReportView(report) {
  */
 function openPrintableReport() {
   const bldgVal = document.getElementById("reportBuilding") ? document.getElementById("reportBuilding").value : "all";
-  const startVal = document.getElementById("reportStart") ? document.getElementById("reportStart").value : "";
-  const endVal = document.getElementById("reportEnd") ? document.getElementById("reportEnd").value : "";
+  const startRaw = document.getElementById("reportStart") ? document.getElementById("reportStart").value : "";
+  const endRaw = document.getElementById("reportEnd") ? document.getElementById("reportEnd").value : "";
+  const startVal = toApiTimestamp(startRaw);
+  const endVal = toApiTimestamp(endRaw);
 
   const url = `/reports/printable?building_id=${encodeURIComponent(bldgVal)}&start=${encodeURIComponent(startVal)}&end=${encodeURIComponent(endVal)}`;
   window.open(url, "_blank");
@@ -286,8 +298,10 @@ function openPrintableReport() {
  */
 function downloadCsvExport() {
   const bldgVal = document.getElementById("reportBuilding") ? document.getElementById("reportBuilding").value : "all";
-  const startVal = document.getElementById("reportStart") ? document.getElementById("reportStart").value : "";
-  const endVal = document.getElementById("reportEnd") ? document.getElementById("reportEnd").value : "";
+  const startRaw = document.getElementById("reportStart") ? document.getElementById("reportStart").value : "";
+  const endRaw = document.getElementById("reportEnd") ? document.getElementById("reportEnd").value : "";
+  const startVal = toApiTimestamp(startRaw);
+  const endVal = toApiTimestamp(endRaw);
 
   const url = `/api/reports/export/csv?building_id=${encodeURIComponent(bldgVal)}&start=${encodeURIComponent(startVal)}&end=${encodeURIComponent(endVal)}`;
   window.location.href = url;

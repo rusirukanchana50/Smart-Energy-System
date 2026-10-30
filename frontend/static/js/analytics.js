@@ -22,6 +22,21 @@ let chartCompE = null;
 let chartCompPeak = null;
 let chartCompPf = null;
 
+const safeFixed = (val, decimals = 1) => (Number.isFinite(Number(val)) ? Number(val) : 0).toFixed(decimals);
+
+function toApiTimestamp(val) {
+  if (!val) return "";
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? val : d.toISOString();
+}
+
+function escapeHtml(str) {
+  if (!str) return "";
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
 // Palette for Buildings
 const BUILDING_COLORS = {
   "CEE":  "#38bdf8",
@@ -100,8 +115,10 @@ function setPreset(preset) {
  */
 async function triggerAnalytics() {
   const bldgId = document.getElementById("filterBuilding").value;
-  const start = document.getElementById("filterStart").value;
-  const end = document.getElementById("filterEnd").value;
+  const startRaw = document.getElementById("filterStart").value;
+  const endRaw = document.getElementById("filterEnd").value;
+  const start = toApiTimestamp(startRaw);
+  const end = toApiTimestamp(endRaw);
   const alertEl = document.getElementById("analyticsAlert");
   const singleView = document.getElementById("singleBuildingView");
   const compView = document.getElementById("comparisonView");
@@ -144,12 +161,12 @@ async function loadComparisonAnalytics(start, end) {
   const comp = json.comparison || [];
 
   // Update Campus Summary KPIs
-  setText("compTotalEnergy", (campus.total_energy_kwh || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
-  setText("compPeakPower", (campus.peak_active_power_kw || 0).toFixed(1));
-  setText("compAvgPower", (campus.avg_active_power_kw || 0).toFixed(1));
-  setText("compAvgPf", (campus.avg_power_factor || 0).toFixed(3));
-  setText("compLoadFactor", (campus.load_factor || 0).toFixed(2));
-  setText("compLoadFactorPct", `(${((campus.load_factor || 0) * 100).toFixed(1)}%)`);
+  setText("compTotalEnergy", (Number.isFinite(Number(campus.total_energy_kwh)) ? Number(campus.total_energy_kwh) : 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
+  setText("compPeakPower", safeFixed(campus.peak_active_power_kw, 1));
+  setText("compAvgPower", safeFixed(campus.avg_active_power_kw, 1));
+  setText("compAvgPf", safeFixed(campus.avg_power_factor, 3));
+  setText("compLoadFactor", safeFixed(campus.load_factor, 2));
+  setText("compLoadFactorPct", `(${safeFixed((Number(campus.load_factor) || 0) * 100, 1)}%)`);
 
   // Render 3 Comparison Charts
   renderComparisonCharts(comp);
@@ -272,17 +289,20 @@ function renderComparisonTable(comp) {
   tbody.innerHTML = "";
   comp.forEach(c => {
     const tr = document.createElement("tr");
-    const { label, cls } = getPfStatus(c.avg_power_factor);
+    const pfVal = Number.isFinite(Number(c.avg_power_factor)) ? Number(c.avg_power_factor) : 0;
+    const { label, cls } = getPfStatus(pfVal);
+    const code = escapeHtml(c.building_code || "");
+    const name = escapeHtml(c.building_name || "");
 
     tr.innerHTML = `
-      <td><span class="badge badge-code">${c.building_code}</span></td>
-      <td style="font-weight: 500;">${c.building_name}</td>
-      <td style="font-family: var(--font-mono); font-weight: 600; color: #fbbf24;">${(c.total_energy_kwh || 0).toFixed(2)} kWh</td>
-      <td style="font-family: var(--font-mono);">${(c.peak_active_power_kw || 0).toFixed(1)} kW</td>
-      <td style="font-family: var(--font-mono);">${(c.avg_active_power_kw || 0).toFixed(1)} kW</td>
-      <td><span class="pf-badge ${cls}">${c.avg_power_factor.toFixed(3)} (${label})</span></td>
-      <td style="font-family: var(--font-mono);">${(c.load_factor || 0).toFixed(2)} <span style="color: var(--text-dim);">(${c.load_factor_pct || 0}%)</span></td>
-      <td style="color: var(--text-dim);">${c.readings_count}</td>
+      <td><span class="badge badge-code">${code}</span></td>
+      <td style="font-weight: 500;">${name}</td>
+      <td style="font-family: var(--font-mono); font-weight: 600; color: #fbbf24;">${safeFixed(c.total_energy_kwh, 2)} kWh</td>
+      <td style="font-family: var(--font-mono);">${safeFixed(c.peak_active_power_kw, 1)} kW</td>
+      <td style="font-family: var(--font-mono);">${safeFixed(c.avg_active_power_kw, 1)} kW</td>
+      <td><span class="pf-badge ${cls}">${safeFixed(pfVal, 3)} (${label})</span></td>
+      <td style="font-family: var(--font-mono);">${safeFixed(c.load_factor, 2)} <span style="color: var(--text-dim);">(${safeFixed(c.load_factor_pct, 1)}%)</span></td>
+      <td style="color: var(--text-dim);">${Number(c.readings_count) || 0}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -307,13 +327,14 @@ async function loadSingleBuildingAnalytics(buildingId, start, end) {
   const history = hJson.data || [];
 
   // Populate Key KPIs
-  setText("kpiEnergyKwh", (a.total_energy_kwh || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-  setText("kpiPeakDemandKw", (a.peak_active_power_kw || 0).toFixed(1));
-  setText("kpiAvgDemandKw", (a.avg_active_power_kw || 0).toFixed(1));
-  setText("kpiAvgPfSingle", (a.avg_power_factor || 0).toFixed(3));
-  setText("kpiMinPfSingle", (a.min_power_factor || 0).toFixed(3));
-  setText("kpiLoadFactorSingle", (a.load_factor || 0).toFixed(2));
-  setText("kpiLoadFactorPctSingle", `(${a.load_factor_pct || 0}%)`);
+  const totalKwh = Number.isFinite(Number(a.total_energy_kwh)) ? Number(a.total_energy_kwh) : 0;
+  setText("kpiEnergyKwh", totalKwh.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  setText("kpiPeakDemandKw", safeFixed(a.peak_active_power_kw, 1));
+  setText("kpiAvgDemandKw", safeFixed(a.avg_active_power_kw, 1));
+  setText("kpiAvgPfSingle", safeFixed(a.avg_power_factor, 3));
+  setText("kpiMinPfSingle", safeFixed(a.min_power_factor, 3));
+  setText("kpiLoadFactorSingle", safeFixed(a.load_factor, 2));
+  setText("kpiLoadFactorPctSingle", `(${safeFixed(a.load_factor_pct, 1)}%)`);
 
   // PF Badge
   const pfBadge = document.getElementById("kpiSinglePfBadge");
@@ -324,15 +345,15 @@ async function loadSingleBuildingAnalytics(buildingId, start, end) {
   }
 
   // Populate Secondary Parameters
-  setText("paramMinP", (a.min_active_power_kw || 0).toFixed(1));
-  setText("paramAvgS", (a.avg_apparent_power_kva || 0).toFixed(1));
-  setText("paramAvgQ", (a.avg_reactive_power_kvar || 0).toFixed(1));
-  setText("paramAvgV", (a.avg_voltage || 0).toFixed(1));
-  setText("paramMinV", (a.min_voltage || 0).toFixed(1));
-  setText("paramMaxV", (a.max_voltage || 0).toFixed(1));
-  setText("paramAvgI", (a.avg_current || 0).toFixed(1));
-  setText("paramAvgF", (a.avg_frequency || 0).toFixed(2));
-  setText("paramCount", a.readings_count || 0);
+  setText("paramMinP", safeFixed(a.min_active_power_kw, 1));
+  setText("paramAvgS", safeFixed(a.avg_apparent_power_kva, 1));
+  setText("paramAvgQ", safeFixed(a.avg_reactive_power_kvar, 1));
+  setText("paramAvgV", safeFixed(a.avg_voltage, 1));
+  setText("paramMinV", safeFixed(a.min_voltage, 1));
+  setText("paramMaxV", safeFixed(a.max_voltage, 1));
+  setText("paramAvgI", safeFixed(a.avg_current, 1));
+  setText("paramAvgF", safeFixed(a.avg_frequency, 2));
+  setText("paramCount", Number(a.readings_count) || 0);
 
   // Render 4 Time Series Charts
   renderSingleBuildingCharts(aJson.building_code || "GEN", history);
@@ -475,9 +496,10 @@ function renderSingleBuildingCharts(code, history) {
  * Determine status label and CSS class based on Power Factor
  */
 function getPfStatus(pf) {
-  if (pf >= 0.90) {
+  const val = Number.isFinite(Number(pf)) ? Number(pf) : 0;
+  if (val >= 0.90) {
     return { label: "Good", cls: "pf-good" };
-  } else if (pf >= 0.85) {
+  } else if (val >= 0.85) {
     return { label: "Warning", cls: "pf-warning" };
   } else {
     return { label: "Poor", cls: "pf-poor" };

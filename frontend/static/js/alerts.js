@@ -12,55 +12,57 @@
  * - Live update interval with user-friendly timestamps.
  */
 
+const safeFixed = (val, decimals = 1) => (Number.isFinite(Number(val)) ? Number(val) : 0).toFixed(decimals);
+
 // Human-readable labels and threshold formatters for each alert type
 const ALERT_TYPE_META = {
   "LOW_POWER_FACTOR": {
     label: "Low Power Factor",
     icon: "⚡",
     unit: "",
-    formatObserved: (val, thresh) => `${val !== null ? Number(val).toFixed(3) : "--"} (Target: &ge; ${Number(thresh).toFixed(3)})`
+    formatObserved: (val, thresh) => `${val !== null && val !== undefined && Number.isFinite(Number(val)) ? safeFixed(val, 3) : "--"} (Target: &ge; ${safeFixed(thresh, 3)})`
   },
   "LOW_VOLTAGE": {
     label: "Undervoltage",
     icon: "📉",
     unit: "V",
-    formatObserved: (val, thresh) => `${val !== null ? Number(val).toFixed(1) : "--"} V (Limit: &lt; ${Number(thresh).toFixed(1)} V)`
+    formatObserved: (val, thresh) => `${val !== null && val !== undefined && Number.isFinite(Number(val)) ? safeFixed(val, 1) : "--"} V (Limit: &lt; ${safeFixed(thresh, 1)} V)`
   },
   "HIGH_VOLTAGE": {
     label: "Overvoltage",
     icon: "📈",
     unit: "V",
-    formatObserved: (val, thresh) => `${val !== null ? Number(val).toFixed(1) : "--"} V (Limit: &gt; ${Number(thresh).toFixed(1)} V)`
+    formatObserved: (val, thresh) => `${val !== null && val !== undefined && Number.isFinite(Number(val)) ? safeFixed(val, 1) : "--"} V (Limit: &gt; ${safeFixed(thresh, 1)} V)`
   },
   "HIGH_FREQUENCY": {
     label: "High Frequency",
     icon: "⚡",
     unit: "Hz",
-    formatObserved: (val, thresh) => `${val !== null ? Number(val).toFixed(2) : "--"} Hz (Limit: &gt; ${Number(thresh).toFixed(2)} Hz)`
+    formatObserved: (val, thresh) => `${val !== null && val !== undefined && Number.isFinite(Number(val)) ? safeFixed(val, 2) : "--"} Hz (Limit: &gt; ${safeFixed(thresh, 2)} Hz)`
   },
   "LOW_FREQUENCY": {
     label: "Low Frequency",
     icon: "⚡",
     unit: "Hz",
-    formatObserved: (val, thresh) => `${val !== null ? Number(val).toFixed(2) : "--"} Hz (Limit: &lt; ${Number(thresh).toFixed(2)} Hz)`
+    formatObserved: (val, thresh) => `${val !== null && val !== undefined && Number.isFinite(Number(val)) ? safeFixed(val, 2) : "--"} Hz (Limit: &lt; ${safeFixed(thresh, 2)} Hz)`
   },
   "HIGH_LOAD": {
     label: "High Load (>90%)",
     icon: "⚠️",
     unit: "kW",
-    formatObserved: (val, thresh) => `${val !== null ? Number(val).toFixed(1) : "--"} kW (Limit: &gt; ${Number(thresh).toFixed(1)} kW)`
+    formatObserved: (val, thresh) => `${val !== null && val !== undefined && Number.isFinite(Number(val)) ? safeFixed(val, 1) : "--"} kW (Limit: &gt; ${safeFixed(thresh, 1)} kW)`
   },
   "OVERLOAD": {
     label: "Feeder Overload (>100%)",
     icon: "🚨",
     unit: "kW",
-    formatObserved: (val, thresh) => `${val !== null ? Number(val).toFixed(1) : "--"} kW (Capacity: ${Number(thresh).toFixed(1)} kW)`
+    formatObserved: (val, thresh) => `${val !== null && val !== undefined && Number.isFinite(Number(val)) ? safeFixed(val, 1) : "--"} kW (Capacity: ${safeFixed(thresh, 1)} kW)`
   },
   "SENSOR_OFFLINE": {
     label: "Sensor Offline",
     icon: "📡",
     unit: "s",
-    formatObserved: (val, thresh) => `${val !== null ? Math.round(Number(val)) : "--"}s (Limit: &gt; ${Math.round(Number(thresh))}s)`
+    formatObserved: (val, thresh) => `${val !== null && val !== undefined && Number.isFinite(Number(val)) ? Math.round(Number(val)) : "--"}s (Limit: &gt; ${Math.round(Number(thresh || 0))}s)`
   }
 };
 

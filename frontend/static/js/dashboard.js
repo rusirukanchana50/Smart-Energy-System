@@ -19,6 +19,8 @@ const MAX_CHART_SAMPLES = 30; // Latest 30 frontend samples
 let pollIntervalId = null;
 let lastSeenTimestamp = null;
 
+const safeFixed = (val, decimals = 1) => (Number.isFinite(Number(val)) ? Number(val) : 0).toFixed(decimals);
+
 // Palette for Faculty Buildings (Known base mappings + dynamic generation for any new building)
 const KNOWN_BUILDING_COLORS = {
   "CEE":   { stroke: "#38bdf8", fill: "rgba(56, 189, 248, 0.1)" },  // Cyan
@@ -127,7 +129,7 @@ function initCharts() {
             borderWidth: 1,
             padding: 10,
             callbacks: {
-              label: (ctx) => ` ${ctx.dataset.label}: ${Number(ctx.raw).toFixed(1)} kW`
+              label: (ctx) => ` ${ctx.dataset.label}: ${safeFixed(ctx.raw, 1)} kW`
             }
           }
         },
@@ -173,7 +175,7 @@ function initCharts() {
             borderColor: "rgba(255, 255, 255, 0.1)",
             borderWidth: 1,
             callbacks: {
-              label: (ctx) => ` ${ctx.label}: ${Number(ctx.raw).toFixed(2)} kW`
+              label: (ctx) => ` ${ctx.label}: ${safeFixed(ctx.raw, 2)} kW`
             }
           }
         },
@@ -427,10 +429,11 @@ function updateDashboard(readings) {
   const avgPf = onlineCount > 0 ? (pfSum / onlineCount) : 0;
 
   // 1. Update Campus KPI Summary Cards
-  setText("kpiTotalActivePower", `${totalActiveKw.toFixed(1)}`);
-  setText("kpiTotalApparentPower", `${totalApparentKva.toFixed(1)}`);
-  setText("kpiTotalEnergy", `${totalEnergyKwh.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`);
-  setText("kpiAvgPf", `${avgPf.toFixed(3)}`);
+  setText("kpiTotalActivePower", safeFixed(totalActiveKw, 1));
+  setText("kpiTotalApparentPower", safeFixed(totalApparentKva, 1));
+  const energyTotal = Number.isFinite(Number(totalEnergyKwh)) ? Number(totalEnergyKwh) : 0;
+  setText("kpiTotalEnergy", energyTotal.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
+  setText("kpiAvgPf", safeFixed(avgPf, 3));
   setText("kpiOnlineCount", `${onlineCount} / ${readings.length}`);
 
   // Update Campus Alert Counters from live data
@@ -534,22 +537,24 @@ function updateBuildingCard(code, d) {
     return;
   }
 
-  setText(`${prefix}v`, `${d.voltage.toFixed(1)}`);
-  setText(`${prefix}i`, `${d.current.toFixed(1)}`);
-  setText(`${prefix}p`, `${d.active_kw.toFixed(1)}`);
-  setText(`${prefix}s`, `${d.apparent_kva.toFixed(1)}`);
-  setText(`${prefix}q`, `${d.reactive_kvar.toFixed(1)}`);
-  setText(`${prefix}pf`, `${d.pf.toFixed(3)}`);
-  setText(`${prefix}freq`, `${d.frequency.toFixed(2)}`);
-  setText(`${prefix}kwh`, `${d.energy_kwh.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
-  setText(`${prefix}time`, d.timestamp);
+  setText(`${prefix}v`, safeFixed(d.voltage, 1));
+  setText(`${prefix}i`, safeFixed(d.current, 1));
+  setText(`${prefix}p`, safeFixed(d.active_kw, 1));
+  setText(`${prefix}s`, safeFixed(d.apparent_kva, 1));
+  setText(`${prefix}q`, safeFixed(d.reactive_kvar, 1));
+  setText(`${prefix}pf`, safeFixed(d.pf, 3));
+  setText(`${prefix}freq`, safeFixed(d.frequency, 2));
+  const kwhVal = Number.isFinite(Number(d.energy_kwh)) ? Number(d.energy_kwh) : 0;
+  setText(`${prefix}kwh`, kwhVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  setText(`${prefix}time`, d.timestamp || "---");
 
   // Power Factor Badge: Good (>= 0.90), Warning (0.85 - 0.899), Poor (< 0.85)
   const pfBadge = document.getElementById(`${prefix}pf_badge`);
   if (pfBadge) {
-    const { label, cls } = getPfStatus(d.pf);
+    const pfVal = Number.isFinite(Number(d.pf)) ? Number(d.pf) : 0;
+    const { label, cls } = getPfStatus(pfVal);
     pfBadge.className = `pf-badge ${cls}`;
-    pfBadge.textContent = `${label} (${d.pf.toFixed(2)})`;
+    pfBadge.textContent = `${label} (${safeFixed(pfVal, 2)})`;
   }
 }
 
@@ -567,9 +572,10 @@ function escapeHtml(str) {
  * - PF < 0.85 -> Poor
  */
 function getPfStatus(pf) {
-  if (pf >= 0.90) {
+  const val = Number.isFinite(Number(pf)) ? Number(pf) : 0;
+  if (val >= 0.90) {
     return { label: "Good", cls: "pf-good" };
-  } else if (pf >= 0.85) {
+  } else if (val >= 0.85) {
     return { label: "Warning", cls: "pf-warning" };
   } else {
     return { label: "Poor", cls: "pf-poor" };
