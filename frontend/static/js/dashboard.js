@@ -1,7 +1,7 @@
 /**
  * dashboard.js
  * ------------
- * Phase 4: Live Energy Monitoring Dashboard Client-Side Logic
+ * Live Energy Monitoring Dashboard Client-Side Logic
  * Faculty of Engineering, University of Ruhuna
  *
  * - Fetches /api/energy/live every 5 seconds
@@ -286,7 +286,7 @@ function ensureBuildingCard(code, r) {
 }
 
 /**
- * Fetch live readings from Flask backend /api/energy/live
+ * Fetch live readings from backend /api/energy/live
  */
 async function fetchLiveEnergy() {
   try {
@@ -414,7 +414,7 @@ function updateDashboard(readings) {
     });
   });
 
-  // Prune cards for buildings that have been deleted from SQLite
+  // Prune cards for buildings that have been deleted
   const existingCards = document.querySelectorAll("#telemetryGrid .bldg-card");
   existingCards.forEach((c) => {
     const cardCode = c.getAttribute("data-building-code") || c.id.replace("card_", "");
@@ -479,7 +479,7 @@ function updateDashboard(readings) {
 function updateBuildingCard(code, d) {
   const prefix = `bldg_${code}_`;
 
-  // Highlight building card if it has active abnormal conditions (Phase 6 Requirement 12)
+  // Highlight building card if it has active abnormal conditions
   const card = document.getElementById(`card_${code}`);
   if (card) {
     card.classList.remove("has-alert-critical", "has-alert-warning");

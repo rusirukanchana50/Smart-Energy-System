@@ -780,7 +780,7 @@ body::before {
 }
 
 /* ==========================================================================
-   Phase 4: Live Energy Monitoring Dashboard Styles
+   Live Energy Monitoring Dashboard Styles
    ========================================================================== */
 
 /* Connection & Simulation Badges */
@@ -1138,7 +1138,7 @@ body::before {
 }
 
 /* ==========================================================================
-   Phase 5: Navigation Tabs & Historical Analytics Portal Styles
+   Navigation Tabs & Historical Analytics Portal Styles
    ========================================================================== */
 
 /* Navbar Navigation Tabs */
@@ -1357,7 +1357,7 @@ body::before {
 }
 
 /* ==========================================================================
-   Phase 6: Electrical Alerts & Abnormal Condition Detection Styles
+   Electrical Alerts & Abnormal Condition Detection Styles
    ========================================================================== */
 
 /* Top Navigation Alert Badge */
@@ -1384,7 +1384,7 @@ body::before {
   50% { transform: scale(1.1); opacity: 0.9; }
 }
 
-/* Dashboard Alert Status Strip (Requirement 11) */
+/* Dashboard Alert Status Strip */
 .alert-status-strip {
   background: rgba(15, 23, 42, 0.7);
   border: 1px solid rgba(245, 158, 11, 0.3);
@@ -1506,7 +1506,7 @@ body::before {
   transform: translateX(2px);
 }
 
-/* Building Card Highlight States (Requirement 12) */
+/* Building Card Highlight States */
 .bldg-card.has-alert-critical {
   border-color: rgba(244, 63, 94, 0.8) !important;
   box-shadow: 0 0 20px rgba(244, 63, 94, 0.35) !important;
@@ -1554,7 +1554,7 @@ body::before {
   white-space: nowrap;
 }
 
-/* Severity Badges (Requirement 10) */
+/* Severity Badges */
 .alert-severity-badge {
   display: inline-block;
   padding: 0.25rem 0.55rem;
@@ -1685,7 +1685,7 @@ body::before {
 }
 
 /* ==========================================================================
-   Phase 7: Energy Cost & Efficiency Analysis Styles
+   Energy Cost & Efficiency Analysis Styles
    ========================================================================== */
 
 .cost-disclaimer-box {
@@ -1890,7 +1890,7 @@ body::before {
 }
 
 /* ==========================================================================
-   Phase 8: Reports & Export Portal Styles
+   Reports & Export Portal Styles
    ========================================================================== */
 
 .report-meta-header {

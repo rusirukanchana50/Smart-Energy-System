@@ -1,7 +1,7 @@
 /**
  * cost_efficiency.js
  * ------------------
- * Client-Side Controller for Phase 7: Energy Cost and Efficiency Analysis
+ * Client-Side Controller for Energy Cost and Efficiency Analysis
  * Faculty of Engineering, University of Ruhuna
  *
  * Handles:

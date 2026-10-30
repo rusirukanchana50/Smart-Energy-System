@@ -36,7 +36,7 @@ const loader = new nunjucks.FileSystemLoader(templatesDir, {
   noCache: process.env.NODE_ENV !== 'production'
 });
 
-// Hook loader getSource to transparently support Python slice notation [:N]
+// Hook loader getSource to transparently support template slice notation [:N]
 const origGetSource = loader.getSource.bind(loader);
 loader.getSource = function (name) {
   const result = origGetSource(name);
@@ -81,7 +81,7 @@ nunjucksEnv.addFilter('format', (fmt, ...args) => {
   return args[0] !== undefined ? String(args[0]) : '';
 });
 
-// Global url_for helper matching Flask route endpoints
+// Global url_for helper matching route endpoints
 nunjucksEnv.addGlobal('url_for', (endpoint, opts) => {
   if (endpoint === 'static') {
     const fn = opts && opts.filename ? String(opts.filename) : '';
@@ -207,7 +207,7 @@ app.get('/api/health', (req, res) => {
 
   res.json({
     status: 'ok',
-    phase: 'Phase 6A: Basic Frontend Integration (Nunjucks & Static Assets)',
+    version: '1.0.0',
     database: {
       status: dbStates[dbState] || 'Unknown',
       connected: dbState === 1

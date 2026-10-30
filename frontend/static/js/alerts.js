@@ -1,7 +1,7 @@
 /**
  * alerts.js
  * ---------
- * Phase 6: Electrical Alerts & Abnormal Condition Client-Side Controller
+ * Electrical Alerts & Abnormal Condition Client-Side Controller
  * Faculty of Engineering, University of Ruhuna
  *
  * Handles:
@@ -113,7 +113,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 /**
- * Fetch and render alerts from backend SQLite REST API
+ * Fetch and render alerts from backend REST API
  */
 async function loadAlerts(showLoadingNotice = false) {
   const bldgId = document.getElementById("filterBuilding")?.value || "all";

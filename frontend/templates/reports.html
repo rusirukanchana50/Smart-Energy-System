@@ -112,11 +112,11 @@
       <div class="hero-content">
         <div class="hero-badge">
           <span class="pulse-dot"></span>
-          PHASE 8 &bull; AUDIT REPORTING &amp; DATA EXPORT
+          AUDIT REPORTING &amp; DATA EXPORT
         </div>
         <h1 class="hero-title">Energy Audit Reports &amp; Data Export</h1>
         <p class="hero-subtitle">
-          Comprehensive 16-parameter electrical energy reports, browser printable PDF generation, and CSV telemetry exports directly from SQLite records.
+          Comprehensive 16-parameter electrical energy reports, browser printable PDF generation, and CSV telemetry exports directly from stored telemetry records.
         </p>
       </div>
 
@@ -420,7 +420,7 @@
         </div>
       </section>
 
-      <!-- Administrator Tariff & System Configuration Card (Enforces Req 12) -->
+      <!-- Administrator Tariff & System Configuration Card -->
       {% if session.get('role') == 'Administrator' %}
       <section class="params-table-card" style="margin-bottom: 2rem; border-color: rgba(245, 158, 11, 0.3);">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
@@ -429,7 +429,7 @@
               Demonstration Tariff Configuration (Administrator Only)
             </h3>
             <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">
-              Configure institutional tariff rates in SQLite. Changes apply immediately to all cost evaluations.
+              Configure institutional tariff rates. Changes apply immediately to all cost evaluations.
             </p>
           </div>
           <span class="user-role-tag role-admin">Administrator</span>

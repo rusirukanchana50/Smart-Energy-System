@@ -1,7 +1,7 @@
 /**
  * reports.js
  * ----------
- * Client-Side Controller for Phase 8: Reports, Export and System Integration
+ * Client-Side Controller for Reports, Export and System Integration
  * Faculty of Engineering, University of Ruhuna
  *
  * Handles:
@@ -282,7 +282,7 @@ function openPrintableReport() {
 }
 
 /**
- * Stream/Download CSV export file directly from SQLite records
+ * Stream/Download CSV export file directly from database records
  */
 function downloadCsvExport() {
   const bldgVal = document.getElementById("reportBuilding") ? document.getElementById("reportBuilding").value : "all";

@@ -1,7 +1,7 @@
 /**
  * analytics.js
  * ------------
- * Phase 5: Historical Energy Analytics Client-Side Controller
+ * Historical Energy Analytics Client-Side Controller
  * Faculty of Engineering, University of Ruhuna
  *
  * Handles:
