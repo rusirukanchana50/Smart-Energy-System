@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: lk.ac.ruh.eng.energy.AuthControllerTest
+-------------------------------------------------------------------------------
+Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 32.99 s -- in lk.ac.ruh.eng.energy.AuthControllerTest

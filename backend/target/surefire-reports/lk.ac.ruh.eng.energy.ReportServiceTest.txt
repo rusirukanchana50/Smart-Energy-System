@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: lk.ac.ruh.eng.energy.ReportServiceTest
+-------------------------------------------------------------------------------
+Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.135 s -- in lk.ac.ruh.eng.energy.ReportServiceTest

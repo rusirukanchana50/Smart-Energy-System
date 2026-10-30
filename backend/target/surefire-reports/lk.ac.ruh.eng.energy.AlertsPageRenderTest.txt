@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: lk.ac.ruh.eng.energy.AlertsPageRenderTest
+-------------------------------------------------------------------------------
+Tests run: 18, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.499 s -- in lk.ac.ruh.eng.energy.AlertsPageRenderTest

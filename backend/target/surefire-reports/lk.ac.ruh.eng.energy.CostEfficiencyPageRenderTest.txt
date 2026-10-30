@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: lk.ac.ruh.eng.energy.CostEfficiencyPageRenderTest
+-------------------------------------------------------------------------------
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.590 s -- in lk.ac.ruh.eng.energy.CostEfficiencyPageRenderTest

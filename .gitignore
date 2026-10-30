@@ -1,0 +1,56 @@
+# ==============================================================================
+# University of Ruhuna - Faculty of Engineering
+# Smart Energy Monitoring and Analytics System (Node.js + Express + MongoDB)
+# Git Ignore Configuration (.gitignore)
+# ==============================================================================
+
+# Node.js dependencies
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+*.secret
+.secret_key
+*.key
+*.pem
+*session_secret*
+*password*
+*.pass
+
+# Database exports, backups & dumps (MongoDB)
+dump/
+**/dump/
+*.bson
+*.bson.gz
+mongodump/
+**/mongodump/
+*.json.bak
+*.export.json
+*.bak
+**/*.bak
+backups/
+**/backups/
+
+# Runtime and Application Data
+logs/
+*.log
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*~
+*.sublime-project
+*.sublime-workspace
+
+# Operating System files
+.DS_Store
+Thumbs.db
+desktop.ini
