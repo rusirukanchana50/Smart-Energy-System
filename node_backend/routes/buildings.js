@@ -442,6 +442,18 @@ router.get('/api/buildings/:id/delete-preview', requireAuth, requireAdmin, async
       rejectionReason = `Cannot delete building '${building.name}' (${building.code}): it has ${deps.join(' and ')}. Historical electrical data must be preserved.`;
     }
 
+    // Determine cascade / simulated data deletion eligibility
+    let canDeleteSimulated = true;
+    let simulatedRejectionReason = null;
+
+    if (isCore) {
+      canDeleteSimulated = false;
+      simulatedRejectionReason = 'Core campus facilities (CEE, EIE, MME, MENA, ADMIN, AUDI) are protected and cannot be deleted.';
+    } else if (counts.non_simulated_readings > 0) {
+      canDeleteSimulated = false;
+      simulatedRejectionReason = `Cannot delete building '${building.name}' (${building.code}): It has ${counts.non_simulated_readings} non-simulated real meter telemetry record(s). Only fully simulated demonstration facilities may be purged.`;
+    }
+
     return res.status(200).json({
       status: 'success',
       preview: {
@@ -456,7 +468,9 @@ router.get('/api/buildings/:id/delete-preview', requireAuth, requireAdmin, async
         alerts_count: counts.alerts_count,
         total_dependencies: counts.total_dependencies,
         can_delete: canDelete,
-        rejection_reason: rejectionReason
+        rejection_reason: rejectionReason,
+        can_delete_simulated: canDeleteSimulated,
+        simulated_rejection_reason: simulatedRejectionReason
       }
     });
   } catch (err) {
@@ -469,10 +483,78 @@ router.get('/api/buildings/:id/delete-preview', requireAuth, requireAdmin, async
 });
 
 /**
+ * Safely and atomically purges simulated readings and alerts, then deletes a non-core building.
+ * Strictly guards core campus facilities and real meter telemetry.
+ */
+async function executeBuildingCascadeDelete(building, res) {
+  // 1. Safeguard: Core building protection
+  if (isCoreBuilding(building)) {
+    return res.status(403).json({
+      status: 'error',
+      message: `Cannot delete core campus facility '${building.name}' (${building.code}): Core buildings are protected system entities.`
+    });
+  }
+
+  // 2. Safeguard: Real (non-simulated) records protection
+  const counts = await getBuildingRelatedCounts(building);
+  if (counts.non_simulated_readings > 0) {
+    return res.status(409).json({
+      status: 'error',
+      message: `Cannot delete building '${building.name}' (${building.code}): It has ${counts.non_simulated_readings} non-simulated real meter telemetry record(s). Only fully simulated demonstration facilities may be purged.`
+    });
+  }
+
+  // 3. Purge simulated readings and alerts for this building
+  const db = mongoose.connection.db;
+  const readingFilter = {
+    $or: [
+      { building_id: building._id },
+      { building_id: building._id.toString() },
+      { building_code: building.code },
+      { building: building._id }
+    ]
+  };
+
+  let deletedReadings = 0;
+  let deletedAlerts = 0;
+
+  if (db) {
+    const colNames = (await db.listCollections().toArray()).map((c) => c.name);
+    for (const rName of ['energy_readings', 'readings', 'energyreadings']) {
+      if (colNames.includes(rName)) {
+        const resR = await db.collection(rName).deleteMany({
+          ...readingFilter,
+          $or: [{ is_simulated: 1 }, { is_simulated: true }]
+        });
+        deletedReadings += resR.deletedCount || 0;
+      }
+    }
+    if (colNames.includes('alerts')) {
+      const resA = await db.collection('alerts').deleteMany(readingFilter);
+      deletedAlerts += resA.deletedCount || 0;
+    }
+  }
+
+  // 4. Delete the building record
+  await Building.deleteOne({ _id: building._id });
+
+  return res.status(200).json({
+    status: 'success',
+    message: `Building '${building.name}' (${building.code}) and all simulated records successfully deleted.`,
+    details: {
+      building_id: building._id.toString(),
+      building_code: building.code,
+      building_name: building.name,
+      deleted_readings: deletedReadings,
+      deleted_alerts: deletedAlerts
+    }
+  });
+}
+
+/**
  * POST /api/buildings/:id/delete
  * Protected endpoint: Administrator only with valid CSRF token.
- * Safely deletes a building with no dependent records.
- * Protects core buildings and buildings with related telemetry or alerts with HTTP 409 Conflict.
+ * Safely deletes a building with no dependent records (or with cascade=true for simulated data).
  */
 router.post('/api/buildings/:id/delete', requireAuth, requireAdmin, async (req, res) => {
   try {
@@ -484,6 +566,15 @@ router.post('/api/buildings/:id/delete', requireAuth, requireAdmin, async (req, 
         status: 'error',
         message: `Building with ID ${id} not found.`
       });
+    }
+
+    const isCascade =
+      req.query.cascade === 'true' ||
+      req.query.delete_simulated === 'true' ||
+      Boolean(req.body && (req.body.cascade === true || req.body.delete_simulated === true));
+
+    if (isCascade) {
+      return await executeBuildingCascadeDelete(building, res);
     }
 
     // 1. Safeguard: Core building protection
@@ -522,6 +613,84 @@ router.post('/api/buildings/:id/delete', requireAuth, requireAdmin, async (req, 
     return res.status(500).json({
       status: 'error',
       message: 'Failed to delete building: ' + err.message
+    });
+  }
+});
+
+/**
+ * DELETE /api/buildings/:id
+ * RESTful delete endpoint supporting ?cascade=true for simulated data.
+ */
+router.delete('/api/buildings/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const building = await findBuildingById(id);
+
+    if (!building) {
+      return res.status(404).json({
+        status: 'error',
+        message: `Building with ID ${id} not found.`
+      });
+    }
+
+    const isCascade =
+      req.query.cascade === 'true' ||
+      req.query.delete_simulated === 'true' ||
+      Boolean(req.body && (req.body.cascade === true || req.body.delete_simulated === true));
+
+    if (isCascade) {
+      return await executeBuildingCascadeDelete(building, res);
+    }
+
+    if (isCoreBuilding(building)) {
+      return res.status(409).json({
+        status: 'error',
+        message: `Cannot delete core campus facility '${building.name}' (${building.code}): Core buildings are protected system entities.`
+      });
+    }
+
+    const counts = await getBuildingRelatedCounts(building);
+    if (counts.total_dependencies > 0) {
+      return res.status(409).json({
+        status: 'error',
+        message: `Cannot delete building '${building.name}' (${building.code}): Historical electrical data must be preserved.`
+      });
+    }
+
+    await Building.deleteOne({ _id: building._id });
+    return res.status(200).json({
+      status: 'success',
+      message: `Building #${id} successfully deleted.`
+    });
+  } catch (err) {
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to delete building: ' + err.message
+    });
+  }
+});
+
+/**
+ * POST /api/buildings/:id/cascade and DELETE /api/buildings/:id/cascade
+ * Dedicated endpoints to cascade delete a demonstration building along with all simulated data.
+ */
+router.all('/api/buildings/:id/cascade', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const building = await findBuildingById(id);
+
+    if (!building) {
+      return res.status(404).json({
+        status: 'error',
+        message: `Building with ID ${id} not found.`
+      });
+    }
+
+    return await executeBuildingCascadeDelete(building, res);
+  } catch (err) {
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to cascade delete building: ' + err.message
     });
   }
 });
@@ -568,60 +737,7 @@ router.post('/api/buildings/:id/delete-simulated', requireAuth, requireAdmin, as
       });
     }
 
-    // 2. Safeguard: Real (non-simulated) records protection
-    const counts = await getBuildingRelatedCounts(building);
-    if (counts.non_simulated_readings > 0) {
-      return res.status(409).json({
-        status: 'error',
-        message: `Cannot delete building '${building.name}' (${building.code}): It has ${counts.non_simulated_readings} non-simulated real meter telemetry record(s). Only fully simulated demonstration facilities may be purged.`
-      });
-    }
-
-    // 3. Purge simulated readings and alerts for this building
-    const db = mongoose.connection.db;
-    const readingFilter = {
-      $or: [
-        { building_id: building._id },
-        { building_id: building._id.toString() },
-        { building_code: building.code },
-        { building: building._id }
-      ]
-    };
-
-    let deletedReadings = 0;
-    let deletedAlerts = 0;
-
-    if (db) {
-      const colNames = (await db.listCollections().toArray()).map((c) => c.name);
-      for (const rName of ['energy_readings', 'readings', 'energyreadings']) {
-        if (colNames.includes(rName)) {
-          const resR = await db.collection(rName).deleteMany({
-            ...readingFilter,
-            $or: [{ is_simulated: 1 }, { is_simulated: true }]
-          });
-          deletedReadings += resR.deletedCount || 0;
-        }
-      }
-      if (colNames.includes('alerts')) {
-        const resA = await db.collection('alerts').deleteMany(readingFilter);
-        deletedAlerts += resA.deletedCount || 0;
-      }
-    }
-
-    // 4. Delete the building record
-    await Building.deleteOne({ _id: building._id });
-
-    return res.status(200).json({
-      status: 'success',
-      message: `Building '${building.name}' (${building.code}) and all simulated records successfully deleted.`,
-      details: {
-        building_id: building._id.toString(),
-        building_code: building.code,
-        building_name: building.name,
-        deleted_readings: deletedReadings,
-        deleted_alerts: deletedAlerts
-      }
-    });
+    return await executeBuildingCascadeDelete(building, res);
   } catch (err) {
     console.error('[Building API] Error in delete-simulated:', err);
     return res.status(500).json({

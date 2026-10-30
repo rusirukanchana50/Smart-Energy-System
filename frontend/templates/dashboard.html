@@ -620,14 +620,18 @@
           var data = await res.json();
           if (res.ok && data.status === 'success' && data.preview) {
             var p = data.preview;
-            if (!p.can_delete) {
+            var canDelSim = (p.can_delete_simulated !== undefined)
+              ? p.can_delete_simulated
+              : (!p.is_core && (p.non_simulated_readings === 0 || p.non_simulated_readings === undefined));
+
+            if (!canDelSim) {
               btn.disabled = true;
               btn.style.opacity = '0.45';
               btn.style.cursor = 'not-allowed';
               btn.style.background = 'rgba(100, 116, 139, 0.2)';
               btn.style.borderColor = 'rgba(100, 116, 139, 0.4)';
               btn.style.color = '#94a3b8';
-              btn.title = 'Cleanup Disabled: ' + (p.rejection_reason || 'Ineligible for deletion');
+              btn.title = 'Cleanup Disabled: ' + (p.simulated_rejection_reason || (p.is_core ? 'Core facilities cannot be deleted' : 'Ineligible for cleanup'));
             } else {
               btn.disabled = false;
               btn.style.opacity = '1';
@@ -858,7 +862,9 @@
         } else {
           var errorMsg = data.message || 'Unknown error occurred while attempting to delete building.';
           showModalNotice(errorMsg, true);
-          alert('Deletion Blocked:\n' + errorMsg);
+          if (confirm('Deletion Blocked:\n' + errorMsg + '\n\nWould you like to delete this building along with all its simulated data?')) {
+            openDeleteSimulatedModal(id, '', name);
+          }
         }
       } catch (err) {
         var networkMsg = 'Request error: ' + err.message;
@@ -915,16 +921,24 @@
           document.getElementById('delPreviewReadings').textContent = p.simulated_readings + ' record(s)';
           document.getElementById('delPreviewAlerts').textContent = p.alerts_count + ' record(s)';
 
+          var canDelSim = (p.can_delete_simulated !== undefined)
+            ? p.can_delete_simulated
+            : (!p.is_core && (p.non_simulated_readings === 0 || p.non_simulated_readings === undefined));
+
           var eligEl = document.getElementById('delPreviewEligibility');
-          if (p.can_delete) {
-            eligEl.textContent = 'Fully Simulated (Eligible for Cleanup)';
+          if (canDelSim) {
+            eligEl.textContent = 'Demonstration Facility (Eligible for Cleanup with Simulated Data)';
             eligEl.style.color = '#34d399';
             confirmSec.style.display = 'block';
+            if (codeInput) {
+              setTimeout(function() { codeInput.focus(); }, 100);
+            }
           } else {
-            eligEl.textContent = 'Ineligible: ' + (p.rejection_reason || 'Deletion restricted');
+            var rejReason = p.simulated_rejection_reason || p.rejection_reason || 'This building cannot be deleted.';
+            eligEl.textContent = 'Ineligible: ' + rejReason;
             eligEl.style.color = '#f87171';
             confirmSec.style.display = 'none';
-            showDeleteSimNotice(p.rejection_reason || 'This building cannot be deleted.', true);
+            showDeleteSimNotice(rejReason, true);
           }
         } else {
           loading.style.display = 'none';
