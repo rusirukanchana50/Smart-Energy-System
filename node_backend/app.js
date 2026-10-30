@@ -111,6 +111,9 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Trust first proxy (Render, Vercel, Nginx) so req.secure and secure cookies work over HTTPS
+app.set('trust proxy', 1);
+
 // Session configuration using environment variable with fallback
 const SESSION_SECRET = process.env.SESSION_SECRET || 'ruhuna-smart-energy-system-secret-key-default-256bit';
 const MONGODB_URI = process.env.MONGODB_URI || DEFAULT_MONGODB_URI;

@@ -1,0 +1,9 @@
+{
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "https://smart-energy-system-zuqh.onrender.com/$1"
+    }
+  ]
+}
+
