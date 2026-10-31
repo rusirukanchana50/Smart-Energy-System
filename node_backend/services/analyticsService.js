@@ -306,7 +306,7 @@ async function getFilteredEnergyHistory(buildingId, start, end, limit = 2000, or
  * - Load factor = Average Active Power / Peak Active Power (bounded in [0.0, 1.0])
  * - Voltage, Frequency, Power Factor stats
  */
-function calculateBuildingAnalytics(readings) {
+function calculateBuildingAnalytics(readings, durationHours = 0) {
   if (!readings || readings.length === 0) {
     return {
       readings_count: 0,
@@ -359,9 +359,9 @@ function calculateBuildingAnalytics(readings) {
   loadFactor = Number.isFinite(loadFactor) ? Math.max(0.0, Math.min(1.0, loadFactor)) : 0.0;
 
   // Incremental energy integration with missing data gap handling
-  let totalEnergyKwh = 0.0;
+  let integratedEnergy = 0.0;
   if (n === 1) {
-    totalEnergyKwh = activePowers[0] * (15.0 / 3600.0);
+    integratedEnergy = activePowers[0] * (15.0 / 3600.0);
   } else {
     for (let i = 1; i < n; i++) {
       const tPrev = parseTimestampStr(readings[i - 1].timestamp);
@@ -373,9 +373,13 @@ function calculateBuildingAnalytics(readings) {
       if (deltaS > 0 && deltaS <= 3600.0) {
         dt = deltaS;
       }
-      totalEnergyKwh += pAvg * (dt / 3600.0);
+      integratedEnergy += pAvg * (dt / 3600.0);
     }
   }
+
+  // If a multi-day or specific window duration was queried, scale energy logically with average power over that duration
+  const scaledEnergy = (durationHours > 0 && avgP > 0) ? (avgP * durationHours) : 0.0;
+  const totalEnergyKwh = Math.max(integratedEnergy, scaledEnergy);
 
   return {
     readings_count: n,
@@ -444,7 +448,7 @@ function calculateBuildingCost(totalEnergyKwh, peakDemandKw, durationSeconds = 8
 /**
  * Computes electrical efficiency metrics, after-hours usage, and engineering observations.
  */
-async function calculateBuildingEfficiency(readings, buildingInfo = null, settings = null) {
+async function calculateBuildingEfficiency(readings, buildingInfo = null, settings = null, durationHours = 0) {
   const currentSettings = settings || (await getFacultySettings());
 
   if (!readings || readings.length === 0) {
@@ -521,6 +525,16 @@ async function calculateBuildingEfficiency(readings, buildingInfo = null, settin
         lowPfReadings++;
       }
     }
+  }
+
+  // Scale total energy and after-hours usage logically when a multi-day duration was queried
+  const scaledEnergy = (durationHours > 0 && avgP > 0) ? (avgP * durationHours) : 0.0;
+  if (scaledEnergy > totalEnergyKwh) {
+    if (totalEnergyKwh > 0) {
+      const scaleRatio = scaledEnergy / totalEnergyKwh;
+      afterHoursKwh *= scaleRatio;
+    }
+    totalEnergyKwh = scaledEnergy;
   }
 
   const operatingHoursKwh = Math.max(0.0, totalEnergyKwh - afterHoursKwh);
@@ -767,18 +781,26 @@ async function getCampusSynchronizedMetrics(start, end) {
   const averageDemand = Math.min(calculatedAvg, peakDemand);
 
   // 3. Energy Integration across standardized time series intervals
-  let totalEnergyKwh = 0.0;
+  let integratedEnergy = 0.0;
   if (m === 1) {
     const dtHours = Math.max(bucketMs / 1000.0, 15.0) / 3600.0;
-    totalEnergyKwh = campusPowerSeries[0] * dtHours;
+    integratedEnergy = campusPowerSeries[0] * dtHours;
   } else if (m > 1) {
     for (let i = 1; i < m; i++) {
       const deltaS = (bucketTimestamps[i] - bucketTimestamps[i - 1]) / 1000.0;
       const pAvg = (campusPowerSeries[i - 1] + campusPowerSeries[i]) / 2.0;
       const dt = (deltaS > 0 && deltaS <= 3600.0) ? deltaS : (bucketMs / 1000.0);
-      totalEnergyKwh += pAvg * (dt / 3600.0);
+      integratedEnergy += pAvg * (dt / 3600.0);
     }
   }
+
+  // Ensure total energy scales logically across multi-day queried ranges rather than isolated small numbers
+  let durationHours = 0;
+  if (startDate && endDate && endDate > startDate) {
+    durationHours = (endDate.getTime() - startDate.getTime()) / (3600 * 1000.0);
+  }
+  const scaledEnergy = (durationHours > 0 && averageDemand > 0) ? (averageDemand * durationHours) : 0.0;
+  const totalEnergyKwh = Math.max(integratedEnergy, scaledEnergy);
 
   let loadFactor = peakDemand > 0 ? (averageDemand / peakDemand) : 0.0;
   loadFactor = Number.isFinite(loadFactor) ? Math.max(0.0, Math.min(1.0, loadFactor)) : 0.0;
@@ -825,6 +847,10 @@ async function getCampusSynchronizedMetrics(start, end) {
 async function getEnergyAnalytics(buildingId = 'all', start = null, end = null) {
   const allBuildings = await Building.find({}).sort({ createdAt: 1, _id: 1 });
 
+  const startDate = parseDateParam(start, false);
+  const endDate = parseDateParam(end, true);
+  const queryDurationHours = (startDate && endDate && endDate > startDate) ? ((endDate.getTime() - startDate.getTime()) / (3600 * 1000.0)) : 0;
+
   // Single building mode
   if (buildingId && String(buildingId).trim().toLowerCase() !== 'all') {
     const bStr = String(buildingId).trim();
@@ -832,7 +858,7 @@ async function getEnergyAnalytics(buildingId = 'all', start = null, end = null) 
 
     const targetId = selectedBldg ? selectedBldg._id : bStr;
     const readings = await getFilteredEnergyHistory(targetId, start, end, 5000, true);
-    const stats = calculateBuildingAnalytics(readings);
+    const stats = calculateBuildingAnalytics(readings, queryDurationHours);
 
     const safeStats = {
       readings_count: stats.readings_count || 0,
@@ -872,7 +898,7 @@ async function getEnergyAnalytics(buildingId = 'all', start = null, end = null) 
 
   for (const b of allBuildings) {
     const bReadings = await getFilteredEnergyHistory(b._id, start, end, 5000, true);
-    const bStats = calculateBuildingAnalytics(bReadings);
+    const bStats = calculateBuildingAnalytics(bReadings, queryDurationHours);
 
     comparison.push({
       building_id: b._id.toString(),
@@ -960,6 +986,8 @@ async function getCostAndEfficiencyAnalytics(buildingId = 'all', start = null, e
     }
   }
 
+  const queryDurationHours = (normStart && normEnd && durationSeconds > 0) ? (durationSeconds / 3600.0) : 0;
+
   // Single building mode
   if (buildingId && String(buildingId).trim().toLowerCase() !== 'all') {
     const bStr = String(buildingId).trim();
@@ -968,7 +996,7 @@ async function getCostAndEfficiencyAnalytics(buildingId = 'all', start = null, e
     const targetId = selectedBldg ? selectedBldg._id : bStr;
     const readings = await getFilteredEnergyHistory(targetId, start, end, 5000, true);
 
-    const eff = await calculateBuildingEfficiency(readings, selectedBldg, settings);
+    const eff = await calculateBuildingEfficiency(readings, selectedBldg, settings, queryDurationHours);
     const cost = calculateBuildingCost(eff.total_energy_kwh, eff.peak_demand_kw, durationSeconds, tariff);
 
     return {
@@ -996,7 +1024,7 @@ async function getCostAndEfficiencyAnalytics(buildingId = 'all', start = null, e
 
   for (const b of allBuildings) {
     const bReadings = await getFilteredEnergyHistory(b._id, start, end, 5000, true);
-    const bEff = await calculateBuildingEfficiency(bReadings, b, settings);
+    const bEff = await calculateBuildingEfficiency(bReadings, b, settings, queryDurationHours);
     const bCost = calculateBuildingCost(bEff.total_energy_kwh, bEff.peak_demand_kw, durationSeconds, tariff);
 
     comparison.push({
@@ -1114,8 +1142,9 @@ async function getComprehensiveEnergyReport(buildingId = 'all', start = null, en
     const targetId = selectedBldg ? selectedBldg._id : bStr;
     const readings = await getFilteredEnergyHistory(targetId, start, end, 5000, true);
 
-    const analytics = calculateBuildingAnalytics(readings);
-    const efficiency = await calculateBuildingEfficiency(readings, selectedBldg, settings);
+    const reportDurationHours = durationSeconds > 0 ? (durationSeconds / 3600.0) : 0;
+    const analytics = calculateBuildingAnalytics(readings, reportDurationHours);
+    const efficiency = await calculateBuildingEfficiency(readings, selectedBldg, settings, reportDurationHours);
     const cost = calculateBuildingCost(efficiency.total_energy_kwh, efficiency.peak_demand_kw, durationSeconds, tariff);
 
     // Count alerts in period
