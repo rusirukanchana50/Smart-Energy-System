@@ -370,7 +370,7 @@ function calculateBuildingAnalytics(readings) {
       const pAvg = (activePowers[i - 1] + activePowers[i]) / 2.0;
 
       let dt = 15.0;
-      if (deltaS > 0 && deltaS <= 60.0) {
+      if (deltaS > 0 && deltaS <= 3600.0) {
         dt = deltaS;
       }
       totalEnergyKwh += pAvg * (dt / 3600.0);
@@ -504,7 +504,7 @@ async function calculateBuildingEfficiency(readings, buildingInfo = null, settin
       const pfAvg = (powerFactors[i - 1] + powerFactors[i]) / 2.0;
 
       let dt = 15.0;
-      if (deltaS > 0 && deltaS <= 60.0) {
+      if (deltaS > 0 && deltaS <= 3600.0) {
         dt = deltaS;
       }
 
@@ -672,6 +672,7 @@ async function getCampusSynchronizedMetrics(start, end) {
   if (!readings || readings.length === 0) {
     return {
       samples_count: 0,
+      total_energy_kwh: 0.0,
       avg_active_power_kw: 0.0,
       peak_active_power_kw: 0.0,
       load_factor: 0.0,
@@ -687,44 +688,110 @@ async function getCampusSynchronizedMetrics(start, end) {
     };
   }
 
-  // Group readings by timestamp (using ISO string or formatted second)
-  const timestampGroups = {};
+  const firstTs = new Date(readings[0].timestamp).getTime();
+  const lastTs = new Date(readings[readings.length - 1].timestamp).getTime();
+  const spanMs = Math.max(0, lastTs - firstTs);
+
+  // Standardize time bucket size based on query duration (15s for short queries, up to 15m for multi-week)
+  let bucketMs = 15000;
+  if (spanMs > 7 * 24 * 3600 * 1000) {
+    bucketMs = 900000; // > 7 days: 15-minute buckets
+  } else if (spanMs > 24 * 3600 * 1000) {
+    bucketMs = 300000; // > 24 hours up to 7 days: 5-minute buckets
+  } else if (spanMs > 2 * 3600 * 1000) {
+    bucketMs = 60000; // > 2 hours up to 24 hours: 1-minute buckets
+  }
+
+  // 1. Unified Time-Series Array: Group readings into standardized time buckets and sum active powers per timestamp
+  const bucketMap = new Map();
   for (const r of readings) {
-    const tKey = r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp);
-    if (!timestampGroups[tKey]) {
-      timestampGroups[tKey] = {
-        total_p: 0,
-        total_q: 0,
+    const rawTs = r.timestamp instanceof Date ? r.timestamp.getTime() : new Date(r.timestamp).getTime();
+    if (isNaN(rawTs)) continue;
+
+    const bKey = Math.floor(rawTs / bucketMs) * bucketMs;
+    let b = bucketMap.get(bKey);
+    if (!b) {
+      b = {
+        timestamp: bKey,
+        buildings: new Map(),
         voltages: [],
         frequencies: [],
         pfs: []
       };
+      bucketMap.set(bKey, b);
     }
-    timestampGroups[tKey].total_p += Number(r.active_power_kw) || 0;
-    timestampGroups[tKey].total_q += Number(r.reactive_power_kvar) || 0;
-    if (r.voltage !== undefined) timestampGroups[tKey].voltages.push(Number(r.voltage));
-    if (r.frequency !== undefined) timestampGroups[tKey].frequencies.push(Number(r.frequency));
-    if (r.power_factor !== undefined) timestampGroups[tKey].pfs.push(Number(r.power_factor));
+
+    const bldgKey = r.building_id ? String(r.building_id) : (r.building_code || 'default');
+    let bldg = b.buildings.get(bldgKey);
+    if (!bldg) {
+      bldg = { p: [], q: [] };
+      b.buildings.set(bldgKey, bldg);
+    }
+    bldg.p.push(Number(r.active_power_kw) || 0.0);
+    bldg.q.push(Number(r.reactive_power_kvar) || 0.0);
+
+    if (r.voltage !== undefined && !isNaN(Number(r.voltage))) b.voltages.push(Number(r.voltage));
+    if (r.frequency !== undefined && !isNaN(Number(r.frequency))) b.frequencies.push(Number(r.frequency));
+    if (r.power_factor !== undefined && !isNaN(Number(r.power_factor))) b.pfs.push(Number(r.power_factor));
   }
 
-  const groupKeys = Object.keys(timestampGroups);
-  const m = groupKeys.length;
+  const sortedBucketKeys = Array.from(bucketMap.keys()).sort((a, b) => a - b);
+  const m = sortedBucketKeys.length;
 
-  const totalPList = groupKeys.map((k) => timestampGroups[k].total_p);
-  const totalQList = groupKeys.map((k) => timestampGroups[k].total_q);
+  const campusPowerSeries = [];
+  const campusReactivePowerSeries = [];
+  const bucketTimestamps = [];
 
-  const peakP = Math.max(...totalPList);
-  const avgP = totalPList.reduce((a, b) => a + b, 0) / m;
-  const avgQ = totalQList.reduce((a, b) => a + b, 0) / m;
+  for (const bKey of sortedBucketKeys) {
+    const b = bucketMap.get(bKey);
+    let totalPInBucket = 0.0;
+    let totalQInBucket = 0.0;
 
-  const avgS = Math.sqrt(Math.max(0, avgP ** 2 + avgQ ** 2));
-  const avgPf = avgS > 0 ? avgP / avgS : 0.0;
+    for (const bldg of b.buildings.values()) {
+      const avgBldgP = bldg.p.reduce((acc, val) => acc + val, 0) / bldg.p.length;
+      const avgBldgQ = bldg.q.reduce((acc, val) => acc + val, 0) / bldg.q.length;
+      totalPInBucket += avgBldgP;
+      totalQInBucket += avgBldgQ;
+    }
+
+    campusPowerSeries.push(totalPInBucket);
+    campusReactivePowerSeries.push(totalQInBucket);
+    bucketTimestamps.push(bKey);
+  }
+
+  // 2. Statistical Derivations: Peak is Math.max, Average is strict arithmetic mean, with secure fail-safe guard
+  const peakDemand = campusPowerSeries.length > 0 ? Math.max(...campusPowerSeries) : 0.0;
+  const calculatedAvg = campusPowerSeries.length > 0
+    ? (campusPowerSeries.reduce((a, b) => a + b, 0) / campusPowerSeries.length)
+    : 0.0;
+  const averageDemand = Math.min(calculatedAvg, peakDemand);
+
+  // 3. Energy Integration across standardized time series intervals
+  let totalEnergyKwh = 0.0;
+  if (m === 1) {
+    const dtHours = Math.max(bucketMs / 1000.0, 15.0) / 3600.0;
+    totalEnergyKwh = campusPowerSeries[0] * dtHours;
+  } else if (m > 1) {
+    for (let i = 1; i < m; i++) {
+      const deltaS = (bucketTimestamps[i] - bucketTimestamps[i - 1]) / 1000.0;
+      const pAvg = (campusPowerSeries[i - 1] + campusPowerSeries[i]) / 2.0;
+      const dt = (deltaS > 0 && deltaS <= 3600.0) ? deltaS : (bucketMs / 1000.0);
+      totalEnergyKwh += pAvg * (dt / 3600.0);
+    }
+  }
+
+  let loadFactor = peakDemand > 0 ? (averageDemand / peakDemand) : 0.0;
+  loadFactor = Number.isFinite(loadFactor) ? Math.max(0.0, Math.min(1.0, loadFactor)) : 0.0;
+
+  const avgQ = campusReactivePowerSeries.length > 0
+    ? (campusReactivePowerSeries.reduce((a, b) => a + b, 0) / campusReactivePowerSeries.length)
+    : 0.0;
+  const avgS = Math.sqrt(Math.max(0, averageDemand ** 2 + avgQ ** 2));
+  let avgPf = avgS > 0 ? (averageDemand / avgS) : 0.0;
+  avgPf = Number.isFinite(avgPf) ? Math.max(0.0, Math.min(1.0, avgPf)) : 0.0;
 
   const allPfs = readings.map((r) => Number(r.power_factor)).filter((x) => !isNaN(x));
   const minPf = allPfs.length > 0 ? Math.min(...allPfs) : avgPf;
-
-  let loadFactor = peakP > 0 ? (avgP / peakP) : 0.0;
-  loadFactor = Number.isFinite(loadFactor) ? Math.max(0.0, Math.min(1.0, loadFactor)) : 0.0;
 
   const allV = readings.map((r) => Number(r.voltage)).filter((x) => !isNaN(x));
   const avgV = allV.length > 0 ? allV.reduce((a, b) => a + b, 0) / allV.length : 400.0;
@@ -736,8 +803,9 @@ async function getCampusSynchronizedMetrics(start, end) {
 
   return {
     samples_count: m,
-    avg_active_power_kw: Math.round(avgP * 100) / 100,
-    peak_active_power_kw: Math.round(peakP * 100) / 100,
+    total_energy_kwh: Math.round(totalEnergyKwh * 1000) / 1000,
+    avg_active_power_kw: Math.round(averageDemand * 100) / 100,
+    peak_active_power_kw: Math.round(peakDemand * 100) / 100,
     load_factor: Math.round(loadFactor * 1000) / 1000,
     load_factor_pct: Math.round(loadFactor * 1000) / 10,
     avg_apparent_power_kva: Math.round(avgS * 100) / 100,
@@ -828,18 +896,39 @@ async function getEnergyAnalytics(buildingId = 'all', start = null, end = null) 
     }
   }
 
-  const campusAvgPower = campusActivePowers.length > 0 ? campusActivePowers.reduce((a, b) => a + b, 0) : 0.0;
-  const campusAvgPf = campusPfs.length > 0 ? campusPfs.reduce((a, b) => a + b, 0) / campusPfs.length : 0.0;
-  const campusPeakPower = comparison.length > 0 ? Math.max(...comparison.map((c) => c.peak_active_power_kw || 0), 0) : 0.0;
-  const sumPeakPowers = comparison.reduce((a, b) => a + (b.peak_active_power_kw || 0), 0);
-  const campusLoadFactor = sumPeakPowers > 0 ? (campusAvgPower / sumPeakPowers) : 0.0;
+  // Synchronized campus-wide metrics derived from unified time-series array
+  const syncMetrics = await getCampusSynchronizedMetrics(start, end);
+
+  // Peak must be coincident campus peak (or at least as large as any single facility peak)
+  const fallbackPeak = comparison.length > 0 ? Math.max(...comparison.map((c) => c.peak_active_power_kw || 0), 0) : 0.0;
+  const campusPeakPower = syncMetrics.samples_count > 0
+    ? Math.max(syncMetrics.peak_active_power_kw, fallbackPeak)
+    : fallbackPeak;
+
+  // Average demand from synchronized series (or sum of building averages)
+  const sumBldgAvgPowers = campusActivePowers.length > 0 ? campusActivePowers.reduce((a, b) => a + b, 0) : 0.0;
+  const rawAvgPower = (syncMetrics.samples_count > 0 && syncMetrics.avg_active_power_kw > 0)
+    ? syncMetrics.avg_active_power_kw
+    : sumBldgAvgPowers;
+
+  // Strict fail-safe guard: average demand must never exceed peak demand
+  const campusAvgPower = campusPeakPower > 0 ? Math.min(rawAvgPower, campusPeakPower) : rawAvgPower;
+
+  const campusAvgPf = syncMetrics.avg_power_factor > 0
+    ? syncMetrics.avg_power_factor
+    : (campusPfs.length > 0 ? campusPfs.reduce((a, b) => a + b, 0) / campusPfs.length : 0.0);
+
+  let campusLoadFactor = campusPeakPower > 0 ? (campusAvgPower / campusPeakPower) : 0.0;
+  campusLoadFactor = Number.isFinite(campusLoadFactor) ? Math.max(0.0, Math.min(1.0, campusLoadFactor)) : 0.0;
+
+  const finalTotalEnergy = Math.max(campusTotalEnergy, syncMetrics.total_energy_kwh || 0);
 
   return {
     mode: 'comparison',
     start: normalizeTimestamp(start),
     end: normalizeTimestamp(end, true),
     campus_summary: {
-      total_energy_kwh: coalesce(campusTotalEnergy, 4),
+      total_energy_kwh: coalesce(finalTotalEnergy, 4),
       avg_active_power_kw: coalesce(campusAvgPower, 2),
       peak_active_power_kw: coalesce(campusPeakPower, 2),
       avg_power_factor: coalesce(campusAvgPf, 4),
@@ -948,6 +1037,20 @@ async function getCostAndEfficiencyAnalytics(buildingId = 'all', start = null, e
 
   const syncMetrics = await getCampusSynchronizedMetrics(start, end);
   const campusAfterHoursPct = campusTotalKwh > 0 ? (campusAfterHoursKwh / campusTotalKwh) * 100.0 : 0.0;
+  const finalCampusTotalKwh = Math.max(campusTotalKwh, syncMetrics.total_energy_kwh || 0);
+
+  // Peak must be coincident campus peak (or at least as large as any single facility peak)
+  const fallbackPeak = comparison.length > 0 ? Math.max(...comparison.map((c) => c.peak_demand_kw || 0), 0) : 0.0;
+  const campusPeakKw = syncMetrics.samples_count > 0 ? Math.max(syncMetrics.peak_active_power_kw, fallbackPeak) : fallbackPeak;
+  const sumBldgAvgDemand = comparison.length > 0 ? comparison.reduce((a, b) => a + (b.avg_demand_kw || 0), 0) : 0.0;
+  const rawAvgKw = (syncMetrics.samples_count > 0 && syncMetrics.avg_active_power_kw > 0)
+    ? syncMetrics.avg_active_power_kw
+    : sumBldgAvgDemand;
+
+  // Strict fail-safe guard: average demand must never exceed peak demand
+  const campusAvgKw = campusPeakKw > 0 ? Math.min(rawAvgKw, campusPeakKw) : rawAvgKw;
+  let campusLoadFactor = campusPeakKw > 0 ? (campusAvgKw / campusPeakKw) : 0.0;
+  campusLoadFactor = Number.isFinite(campusLoadFactor) ? Math.max(0.0, Math.min(1.0, campusLoadFactor)) : 0.0;
 
   return {
     mode: 'comparison',
@@ -955,17 +1058,17 @@ async function getCostAndEfficiencyAnalytics(buildingId = 'all', start = null, e
     end: normEnd,
     tariff,
     campus_summary: {
-      total_kwh: coalesce(campusTotalKwh, 4),
+      total_kwh: coalesce(finalCampusTotalKwh, 4),
       estimated_cost_lkr: coalesce(campusTotalCost, 2),
       estimated_energy_charge_lkr: coalesce(campusEnergyCharges, 2),
       demand_charge_lkr: coalesce(campusDemandCharges, 2),
       fixed_charge_lkr: coalesce(campusFixedCharges, 2),
-      peak_demand_kw: coalesce(syncMetrics.peak_active_power_kw, 2),
-      avg_demand_kw: coalesce(syncMetrics.avg_active_power_kw, 2),
+      peak_demand_kw: coalesce(campusPeakKw, 2),
+      avg_demand_kw: coalesce(campusAvgKw, 2),
       avg_apparent_power_kva: coalesce(syncMetrics.avg_apparent_power_kva, 2),
       avg_reactive_power_kvar: coalesce(syncMetrics.avg_reactive_power_kvar, 2),
-      load_factor: coalesce(syncMetrics.load_factor, 4),
-      load_factor_pct: coalesce(syncMetrics.load_factor_pct, 2),
+      load_factor: coalesce(campusLoadFactor, 4),
+      load_factor_pct: coalesce(campusLoadFactor * 100, 2),
       avg_power_factor: coalesce(syncMetrics.avg_power_factor, 4),
       min_power_factor: coalesce(syncMetrics.min_power_factor, 4),
       avg_voltage: coalesce(syncMetrics.avg_voltage, 2),

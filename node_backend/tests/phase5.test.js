@@ -496,7 +496,23 @@ describe('Phase 5: Historical Analytics, Cost, Efficiency & Reports Test Suite',
     // Campus summary KPIs
     assert.ok(typeof body.campus_summary.total_energy_kwh === 'number');
     assert.ok(typeof body.campus_summary.peak_active_power_kw === 'number');
+    assert.ok(typeof body.campus_summary.avg_active_power_kw === 'number');
     assert.ok(typeof body.campus_summary.load_factor === 'number');
+    assert.ok(
+      body.campus_summary.avg_active_power_kw <= body.campus_summary.peak_active_power_kw,
+      `Campus Average Demand (${body.campus_summary.avg_active_power_kw} kW) must never exceed Peak Demand (${body.campus_summary.peak_active_power_kw} kW)`
+    );
+  });
+
+  it('4.6 getCampusSynchronizedMetrics should enforce average_demand <= peak_demand and accumulate energy', async () => {
+    const metrics = await getCampusSynchronizedMetrics();
+    assert.ok(metrics.samples_count > 0);
+    assert.ok(
+      metrics.avg_active_power_kw <= metrics.peak_active_power_kw,
+      `Synchronized Average Demand (${metrics.avg_active_power_kw} kW) must never exceed Peak Demand (${metrics.peak_active_power_kw} kW)`
+    );
+    assert.ok(metrics.total_energy_kwh > 0, 'Total energy must accumulate positively');
+    assert.ok(metrics.load_factor <= 1.0, 'Load factor must be <= 1.0');
   });
 
   // =========================================================================
