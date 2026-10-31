@@ -158,7 +158,7 @@
         <div class="filter-group">
           <label class="filter-label" for="reportBuilding">Facility / Scope</label>
           <select id="reportBuilding" class="filter-select">
-            <option value="all">Campus Facilities Summary (All Registered Buildings)</option>
+            <option value="all">University Facilities Summary (All Registered Buildings)</option>
             {% for b in buildings %}
             <option value="{{ b.id }}">[{{ b.code }}] {{ b.name }}</option>
             {% endfor %}

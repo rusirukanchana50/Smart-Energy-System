@@ -150,7 +150,7 @@
         <div class="filter-group">
           <label class="filter-label" for="filterBuilding">Facility / Building</label>
           <select id="filterBuilding" class="filter-select">
-            <option value="all">Campus Facilities Comparison (All Registered Buildings)</option>
+            <option value="all">University Facilities Comparison (All Registered Buildings)</option>
             {% for b in buildings %}
             <option value="{{ b.id }}">[{{ b.code }}] {{ b.name }}</option>
             {% endfor %}
@@ -370,23 +370,23 @@
     </div>
 
     <!-- ====================================================================
-         SECTION B: Campus Facilities Comparison View (Shown when 'All Buildings' is selected)
+         SECTION B: University Facilities Comparison View (Shown when 'All Buildings' is selected)
          ==================================================================== -->
     <div id="comparisonView">
       
-      <!-- Campus Total KPI Aggregation -->
+      <!-- University Total KPI Aggregation -->
       <section class="kpi-grid">
         <div class="kpi-card" style="--card-accent: var(--ruhuna-gold);">
-          <div class="kpi-header"><span class="kpi-title">Campus Total Energy</span></div>
+          <div class="kpi-header"><span class="kpi-title">University Total Energy</span></div>
           <div class="kpi-value-wrap">
             <span id="compTotalEnergy" class="kpi-value">0.0</span>
             <span class="kpi-unit">kWh</span>
           </div>
-          <div class="kpi-subtext">Cumulative energy across all registered campus facilities</div>
+          <div class="kpi-subtext">Cumulative energy across all registered university facilities</div>
         </div>
 
         <div class="kpi-card" style="--card-accent: #f43f5e;">
-          <div class="kpi-header"><span class="kpi-title">Campus Peak Demand</span></div>
+          <div class="kpi-header"><span class="kpi-title">University Peak Demand</span></div>
           <div class="kpi-value-wrap">
             <span id="compPeakPower" class="kpi-value">0.0</span>
             <span class="kpi-unit">kW</span>
@@ -395,7 +395,7 @@
         </div>
 
         <div class="kpi-card" style="--card-accent: var(--energy-cyan);">
-          <div class="kpi-header"><span class="kpi-title">Campus Average Demand</span></div>
+          <div class="kpi-header"><span class="kpi-title">University Average Demand</span></div>
           <div class="kpi-value-wrap">
             <span id="compAvgPower" class="kpi-value">0.0</span>
             <span class="kpi-unit">kW</span>
@@ -404,15 +404,15 @@
         </div>
 
         <div class="kpi-card" style="--card-accent: var(--success);">
-          <div class="kpi-header"><span class="kpi-title">Campus Average PF</span></div>
+          <div class="kpi-header"><span class="kpi-title">University Average PF</span></div>
           <div class="kpi-value-wrap">
             <span id="compAvgPf" class="kpi-value">0.000</span>
           </div>
-          <div class="kpi-subtext">Campus-wide power factor index</div>
+          <div class="kpi-subtext">University-wide power factor index</div>
         </div>
 
         <div class="kpi-card" style="--card-accent: #a855f7;">
-          <div class="kpi-header"><span class="kpi-title">Campus Load Factor</span></div>
+          <div class="kpi-header"><span class="kpi-title">University Load Factor</span></div>
           <div class="kpi-value-wrap">
             <span id="compLoadFactor" class="kpi-value">0.00</span>
             <span class="kpi-unit" id="compLoadFactorPct">(0.0%)</span>
@@ -458,7 +458,7 @@
         </div>
       </section>
 
-      <!-- Campus Facilities Detailed Comparison Table -->
+      <!-- University Facilities Detailed Comparison Table -->
       <section class="params-table-card">
         <h3 style="font-size: 1.05rem; font-weight: 600; color: #fff; margin-bottom: 1.25rem;">
           Faculty Facilities Comparative Analytics Table
