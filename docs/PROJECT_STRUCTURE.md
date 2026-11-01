@@ -5,7 +5,7 @@ This document details the architectural layout, directory organization, and spec
 
 ---
 
-## 🌳 Directory Tree Overview
+## 1. Directory Tree Overview
 
 ```text
 Ruhuna Smart Energy System NodeJS/
@@ -88,7 +88,7 @@ Ruhuna Smart Energy System NodeJS/
 
 ---
 
-## 🔍 Detailed Component Descriptions
+## 2. Detailed Component Descriptions
 
 ### 1. `node_backend/`
 - **`server.js`**: Connects to MongoDB, initializes the Express server on port 5000, and attaches graceful shutdown handlers (`SIGINT`, `SIGTERM`).
@@ -110,4 +110,4 @@ Ruhuna Smart Energy System NodeJS/
 - **`analyticsService.js`**: Implements three-phase AC power calculations, discrete trapezoidal Riemann energy integration, load factor computation, after-hours energy ratios, and 16-parameter audit summary generation.
 
 ### 4. `node_backend/tests/`
-Contains 8 automated test suites built on Node's native test runner (`node:test`), covering 184 test assertions spanning models, sessions, RBAC, CRUD, math, telemetry, alert detection, and UI views.
+Contains 8 automated test suites built on Node's native test runner (`node:test`), covering 187 test assertions spanning models, sessions, RBAC, CRUD, math, telemetry, alert detection, and UI views.

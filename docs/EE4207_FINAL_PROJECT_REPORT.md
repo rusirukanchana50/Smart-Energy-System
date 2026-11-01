@@ -9,7 +9,7 @@
 **Student Name:** K.A.W.R.K.B. Kohona  
 **Student Registration / Index Number:** EG/2023/5685  
 **Course Code & Module:** EE4207 — Web Application Development  
-**Academic Year / Semester:** Academic Year 2025/2026 — Semester 8  
+**Academic Year / Semester:** Academic Year 2025/2026 — Semester 4  
 **Department:** Department of Electrical and Information Engineering  
 **Submission Date:** November 2026  
 **GitHub Repository:** `https://github.com/rusirukanchana50/Smart-Energy-System.git`  

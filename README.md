@@ -23,7 +23,7 @@
 | **Department** | Department of Electrical and Information Engineering |
 | **Faculty** | Faculty of Engineering |
 | **University** | University of Ruhuna (Hapugala, Galle, Sri Lanka) |
-| **Academic Year** | 2025/2026 (Semester 8) |
+| **Academic Year** | 2025/2026 (Semester 4) |
 
 ---
 
