@@ -1,199 +1,148 @@
 # University of Ruhuna — Smart Energy Monitoring & Analytics System
 ## Viva Demonstration Guide (`DEMO_MODE.md`)
-
-This guide provides a structured, step-by-step walkthrough for presenting the **Smart Energy Monitoring and Analytics System** (Faculty of Engineering, University of Ruhuna, Hapugala, Galle) during your final project evaluation and viva examination.
+**Course:** EE4207 — Web Application Development  
+**Author:** K.A.W.R.K.B. Kohona (EG/2023/5685)  
 
 ---
 
-## 🎯 Viva Presentation Objectives
+## 1. Evaluation Objectives
 
-When presenting to academic evaluators, demonstrate that the system satisfies key engineering requirements:
-1. **Accurate Three-Phase Electrical Mathematics**: Adherence to power triangle relationships ($S = \sqrt{3} V_L I_L$, $P = S \times PF$, $Q = \sqrt{S^2 - P^2}$).
-2. **Reliable Real-Time Telemetry Pipeline**: Dual-process architecture where `node_backend/simulator.js` generates telemetry and `node_backend/server.js` serves the portal without database contention.
-3. **Role-Based Access Control (RBAC)**: Secure separation between Administrator and Viewer roles.
-4. **Energy Cost & Institutional Tariff Modeling**: Two-part industrial/commercial tariff calculation with after-hours consumption detection.
-5. **Analytical Insights & Engineering Observations**: Automated detection of high demand peaks, low power factor, and electrical anomalies.
+When demonstrating the system for evaluation in **EE4207: Web Application Development**, verify that the following engineering requirements are met:
+1. **Three-Phase Electrical Calculations**: Compliance with standard AC power formulas ($S = \sqrt{3} V_L I_L$, $P = S \times \text{PF}$, $Q = \sqrt{S^2 - P^2}$).
+2. **Asynchronous Architecture**: Dual-process architecture where `node_backend/simulator.js` writes telemetry and `node_backend/server.js` serves the portal without database contention.
+3. **Role-Based Access Control (RBAC)**: Strict segregation between Administrator and Viewer roles.
+4. **Energy Cost & Institutional Tariff Modeling**: Two-part industrial/commercial tariff calculations with after-hours consumption detection.
+5. **Analytical Insights & Engineering Observations**: Automated evaluation of high demand peaks, low power factor, and safety threshold excursions.
 6. **Academic Transparency**: Clear disclosure that telemetry is simulated and tariff rates represent an educational demonstration model.
 
 ---
 
-## ⏱️ Recommended 10-Minute Viva Demonstration Sequence
+## 2. Recommended 10-Minute Demonstration Timeline
 
 ```text
-[00:00 - 01:30]  1. Terminal Setup & Dual-Process Launch
+[00:00 - 01:30]  1. Terminal Setup & Server Boot
 [01:30 - 02:45]  2. Authentication & Role-Based Access Control
-[02:45 - 04:15]  3. Live Monitoring Dashboard & Real-Time Telemetry
-[04:15 - 05:45]  4. Historical Analytics & Load Factor Analysis
-[05:45 - 07:15]  5. Electrical Anomaly Detection & Live Anomaly Injection
+[02:45 - 04:15]  3. Live Substation Monitoring Dashboard & 5s Telemetry Polling
+[04:15 - 05:45]  4. Historical Analytics, Coincident Peak & Load Factor
+[05:45 - 07:15]  5. Electrical Anomaly Detection & Anomaly Injection Testing
 [07:15 - 08:30]  6. Energy Cost & Efficiency Rankings (Two-Part Tariff)
-[08:30 - 09:30]  7. Comprehensive Audit Reports & Official PDF Print View
-[09:30 - 10:00]  8. System Validation Scorecard & Q&A Conclusion
+[08:30 - 09:30]  7. Comprehensive Audit Reports & Official PDF Print Layout
+[09:30 - 10:00]  8. Automated Test Scorecard & Technical Q&A
 ```
 
 ---
 
-## 🛠️ Step 1: Terminal Setup & System Startup (2 Terminals)
+## 3. Step-by-Step Execution Guide
 
-Open **two separate terminals** in the project directory (`Ruhuna Smart Energy System`).
+### Step 1: Terminal Setup & Startup (2 Terminals)
+Open **two terminals** in the project directory:
 
-### Terminal 1: Start Express Application Server
+#### Terminal 1: Start Express Application Server
 ```powershell
-npm.cmd start
+npm start
 ```
-- **What happens**: Express boots on `http://127.0.0.1:5000`, connects to MongoDB (`ruhuna_energy`), initializes sessions via `connect-mongo`, and binds protected endpoints.
-- **Examiner Note**: Point out that the server runs with cryptographically signed sessions (`SESSION_SECRET`) and double-submit cookie CSRF protection.
+- **Execution**: Express connects to MongoDB (`ruhuna_energy`), initializes session storage via `connect-mongo`, provisions default users, and starts listening on port 5000.
 
-### Terminal 2: Start Three-Phase Simulator
+#### Terminal 2: Start Telemetry Simulator
 ```powershell
-npm.cmd run simulator
+npm run simulator
 ```
-- **What happens**: The simulator queries all active campus buildings from MongoDB and emits balanced 3-phase readings every 15 seconds (or configure via `--interval 5.0`).
-- **Examiner Note**: Point out the nominal 400 V line-to-line voltage and 50 Hz grid frequency logged cleanly in Terminal 2.
+- **Execution**: The simulator retrieves all registered facilities from MongoDB and emits balanced 3-phase readings every 15 seconds.
 
 ---
 
-## 🔐 Step 2: Authentication & Role-Based Access Control (RBAC)
-
-1. Open your web browser and navigate to:
+### Step 2: Authentication & RBAC Verification
+1. Open web browser to:
    ```text
-   http://127.0.0.1:5000
+   http://localhost:5000
    ```
-2. **Demonstrate Route Protection**:
-   - Point out that unauthenticated users are automatically redirected to `/login`.
-   - Try directly accessing `http://127.0.0.1:5000/dashboard` in an Incognito window to show that unauthorized access is blocked (HTTP 302 redirect).
-3. **Log in as Administrator**:
-   - **Email**: `admin@ruh.ac.lk` (or `test_admin@eng.ruh.ac.lk`)
-   - **Password**: `<your-admin-password>` *(entered interactively during account creation)*
-   - **Click**: "Sign In"
-   - **Highlight**: Dark-themed university branding, session persistence, and the `ADMINISTRATOR` status badge in the top navigation bar.
+2. Log in using the **Viewer** account:
+   - **Email**: `viewer@eng.ruh.ac.lk`
+   - **Password**: `Viewer@1234`
+3. Point out the **Viewer** role badge in the navigation bar.
 
 ---
 
-## ⚡ Step 3: Live Monitoring Dashboard
-
-1. **Observe Building Telemetry Cards**:
-   - Point out all 6 faculty buildings:
-     * Civil and Environmental Engineering (`CEE`)
-     * Electrical and Information Engineering (`EIE`)
-     * Mechanical and Manufacturing Engineering (`MME`)
-     * Marine Engineering and Naval Architecture (`MENA`)
-     * Administration Building (`ADMIN`)
-     * Auditorium (`AUDI`)
-2. **Highlight Real-Time 5-Second Polling**:
-   - Point out that live values (Voltage, Current, Active Power, Power Factor, Frequency, Energy) update automatically without manual page refreshes.
-   - Point out the **"SIMULATED DATA"** indicator badge showing ethical academic disclosure.
-3. **Interactive Charts**:
-   - Observe the real-time sliding-window Line Chart (Active Power kW) and Bar Chart comparing electrical demand across all 6 facilities.
+### Step 3: Live Monitoring Dashboard (`/dashboard`)
+1. Show live telemetry across the campus facilities:
+   - Line Voltage ($V_L \approx 400.0\text{ V}$)
+   - Line Current ($I_L$)
+   - Active Power ($P\text{ kW}$)
+   - Apparent Power ($S\text{ kVA}$)
+   - Reactive Power ($Q\text{ kVAr}$)
+   - Power Factor ($\text{PF}$)
+   - Grid Frequency ($f \approx 50.0\text{ Hz}$)
+2. Observe asynchronous 5-second polling updates without page reloads.
 
 ---
 
-## 📊 Step 4: Historical Analytics & Load Factor
-
-1. Click **"Historical Analytics"** in the top navigation bar (`/analytics`).
-2. **Demonstrate Filter Controls**:
-   - Select **Civil and Environmental Engineering (CEE)**.
-   - Click preset buttons: `1h`, `Today`, `24h`, `7d`.
-   - Click **"Apply Filter"**.
-3. **Explain Key Electrical KPIs**:
-   - **Total Consumed Energy ($kWh$)**: Integrates active power using consecutive timestamp integration with missing sensor data credit protection.
-   - **Peak Demand ($kW$)**: Highest observed active demand.
-   - **Load Factor ($LF$)**:
-     $$\text{Load Factor} = \frac{P_{\text{avg}}}{P_{\text{peak}}}$$
-     Explain that a high load factor (~85–90%) indicates steady utilization of feeder capacity.
-   - **Power Factor ($PF$)**: Average displacement power factor (~0.88–0.92).
-4. **Campus Comparison Mode**:
-   - Select **"All Buildings (Campus Comparison)"** from the dropdown.
-   - Show the 6-building comparative bar charts showing energy distribution across departments without double-counting.
+### Step 4: Historical Analytics & Load Factor (`/analytics`)
+1. Select preset: **Last 24 Hours**.
+2. Select individual facility or **University Facilities Comparison (All Registered Buildings)**.
+3. Review KPIs: Total Energy ($kWh$), Peak Demand ($kW$), Average Demand ($kW$), Load Factor ($\text{LF} = P_{\text{avg}} / P_{\text{peak}}$).
+4. Review coincident university peak derivation and comparative charts.
 
 ---
 
-## 🚨 Step 5: Electrical Anomaly Detection & Live Injection
-
-1. Click **"Electrical Alerts"** in the navigation bar (`/alerts`).
-2. **Explain Monitored Safety Conditions**:
-   - Low Power Factor ($PF < 0.85$) — Utility surcharge risk.
-   - Undervoltage ($V_L < 380\text{ V}$, $-5\%$) & Overvoltage ($V_L > 420\text{ V}$, $+5\%$).
-   - Frequency Excursions ($f < 49.5\text{ Hz}$ or $f > 50.5\text{ Hz}$).
-   - Feeder High Load ($> 90\%$ rated capacity) & Overload ($> 100\%$).
-   - Sensor Offline ($> 60\text{ s}$ telemetry silence).
-3. **Perform Live Anomaly Injection (Viva "Wow" Factor)**:
-   In Terminal 2, stop the simulator (Ctrl+C) and run with an injected anomaly:
+### Step 5: Controlled Anomaly Injection Testing (`/alerts`)
+1. Navigate to `/alerts`.
+2. In a separate terminal, inject controlled test anomalies:
    ```powershell
-   node node_backend/simulator.js --interval 5.0 --anomaly LOW_PF --building-id CEE
+   # Inject Low Power Factor on Building EIE:
+   node node_backend/simulator.js --once --anomaly LOW_PF --building-id EIE
+
+   # Inject Severe Overload on Building CEE:
+   node node_backend/simulator.js --once --anomaly OVERLOAD --building-id CEE
    ```
-   - Return to the browser `/alerts` page.
-   - Notice the **CRITICAL / WARNING** alert banner appear in real time for Building 1 (CEE) with exact measured value and threshold.
-4. **Demonstrate Administrator Acknowledgment**:
-   - Click the **"Acknowledge"** button on the newly triggered alert.
-   - Show that the alert is updated with the administrator's name and timestamp.
-   - Note: If logged in as a Viewer, the button is hidden/disabled (enforcing RBAC).
+3. Verify alert indicators appear on the dashboard and alerts log.
+4. Verify duplicate suppression by re-executing the command.
+5. Restore normal readings:
+   ```powershell
+   node node_backend/simulator.js --once
+   ```
+6. Verify alerts automatically transition to `Cleared`.
 
 ---
 
-## 💰 Step 6: Cost & Efficiency Analysis
-
-1. Click **"Cost & Efficiency"** in the top navigation bar (`/cost-efficiency`).
-2. **Explain Two-Part Demonstration Tariff**:
-   - **Energy Charge**: Real consumption $\times$ Rs. 38.50/kWh.
-   - **Peak Demand Charge**: Monthly peak kW $\times$ Rs. 1,450.00/kW (scaled to query window).
-   - **Fixed Service Charge**: Rs. 3,000.00/month (scaled to query window).
-3. **After-Hours Energy Tracking**:
-   - Operating Hours: Weekdays 08:00 – 17:00.
-   - Any energy consumed outside these hours or on weekends is flagged as after-hours energy.
-4. **Departmental Efficiency Rankings**:
-   - Show the ranked list of faculty complexes scored from Best to Needs Attention based on load factor, average power factor, and after-hours percentage.
+### Step 6: Cost & Efficiency Analytics (`/cost-efficiency`)
+1. Review the demonstration two-part tariff calculation.
+2. Note the educational disclaimer banner.
+3. Review after-hours consumption metrics and departmental rankings.
 
 ---
 
-## 📄 Step 7: Comprehensive Reports & Official PDF Print View
-
-1. Click **"Energy Reports"** in the top navigation bar (`/reports`).
-2. **Generate 16-Parameter Summary Audit**:
-   - Select Date Range (e.g., `Today` or `Last 7 Days`).
-   - Click **"Generate Audit Report"**.
-   - Review the 16 standard energy audit parameters and automated engineering observations.
-3. **Demonstrate Telemetry CSV Export**:
-   - Click **"Export CSV"**.
-   - Show the downloaded `.csv` file containing timestamped 3-phase records with data source clearly tagged as `SIMULATED`.
-4. **Demonstrate Printable PDF Export**:
-   - Click **"Printable View / PDF"**.
-   - A clean white-background document opens formatted specifically for university administrative reporting:
-     * Official University of Ruhuna crest header.
-     * Summary audit KPI table.
-     * Departmental breakdown table.
-     * Safety threshold event log.
-     * Formal educational disclaimer note.
-   - Press **Ctrl+P** (or click "Print / Save as PDF") to show clean pagination.
+### Step 7: Reports, CSV Export & Printable Layout (`/reports`)
+1. Generate audit report for **Last 24 Hours**.
+2. Click **Print / Save PDF** to demonstrate print-optimized CSS layout.
+3. Click **Export CSV** to demonstrate raw telemetry streaming.
 
 ---
 
-## 🧪 Step 8: System Verification Scorecard
-
-To prove system stability to the examiners, open a third terminal and execute the master automated test runner:
+### Step 8: Automated Test Verification
+In a terminal, execute the master test suite:
 ```powershell
-python run_all_tests.py
+npm test
 ```
-- **Show the Final Output Scorecard**:
-  * Total Test Suites: **11**
-  * Total Verification Checks: **129**
-  * Passed: **129**
-  * Failed: **0**
-  * Execution Time: **~12 seconds**
+- **Expected Verification Results**:
+  - Total Test Suites: **8**
+  - Total Test Cases: **187**
+  - Result: **187 Passed (100% Success)**
+  - Execution Time: **~15 seconds**
 
 ---
 
-## 💬 Common Viva Questions & Model Answers
+## 4. Viva Technical Questions & Model Answers
 
-### Q1: Are these readings coming from physical meters installed in the faculty?
-> **Answer**: No. In this prototype, readings are generated by a three-phase software simulator (`simulator.py`) using balanced 400 V / 50 Hz formulas and realistic diurnal university load curves. Every page, API endpoint, CSV export, and printed report explicitly discloses the `SIMULATED` label to maintain complete academic integrity.
+### Q1: Are these readings originating from physical meters installed in the faculty?
+> **Answer**: No. In this prototype, readings are generated by a three-phase software simulator (`node_backend/simulator.js`) using balanced $400\text{ V} / 50\text{ Hz}$ formulas and realistic diurnal university load curves. Every page, API endpoint, CSV export, and printed report explicitly discloses the `SIMULATED` label to maintain complete academic integrity.
 
-### Q2: Why did you use SQLite instead of a dedicated time-series database?
-> **Answer**: SQLite was chosen for portability, self-containment, and zero-configuration demonstration during project evaluations. To support concurrent writes from `simulator.py` and reads from Flask `app.py`, Write-Ahead Logging (`WAL` mode) and connection timeouts are utilized. In future deployment, a time-series engine like TimescaleDB or PostgreSQL would be integrated.
+### Q2: Why did you use MongoDB Atlas instead of SQLite or PostgreSQL?
+> **Answer**: Electrical telemetry records contain nested parameters that map cleanly to document schemas. MongoDB Atlas provides managed high availability, cloud persistence, and flexible time-series compound indexing, while Mongoose enforces schema validation and relationship integrity.
 
-### Q3: How is electricity cost calculated? Is this the official CEB bill?
-> **Answer**: Cost estimates use a configurable two-part demonstration institutional tariff model (Energy Rate: LKR 38.50/kWh, Maximum Demand: LKR 1,450.00/kW, Fixed Charge: LKR 3,000.00/month). It is an engineering estimation tool to demonstrate the financial impact of peak demand and low power factor, clearly noted as a non-official estimate.
+### Q3: How is electricity cost calculated? Is this an official CEB bill?
+> **Answer**: Cost estimates use a configurable two-part demonstration institutional tariff model (Energy Rate: LKR 40.00/kWh, Maximum Demand: LKR 1,200.00/kW, Fixed Charge: LKR 3,000.00/month). It serves as an engineering estimation tool to demonstrate the financial impact of peak demand and low power factor, clearly noted as a non-official estimate.
 
-### Q4: How is Load Factor defined and why is it important?
+### Q4: How is Load Factor defined and what does it tell an electrical engineer?
 > **Answer**: Load Factor is defined as the ratio of Average Active Power to Peak Active Power over a given interval:
 > $$\text{Load Factor} = \frac{P_{\text{avg}}}{P_{\text{peak}}}$$
 > A load factor close to 1.0 indicates steady and efficient utilization of substation transformer capacity. A low load factor means high peak demand with low average consumption, resulting in high utility maximum demand charges.

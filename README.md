@@ -1,198 +1,259 @@
-# University of Ruhuna — Faculty of Engineering
-# Smart Energy Monitoring and Analytics System (Node.js & MongoDB)
+# Smart Energy Monitoring and Analytics System
+## Faculty of Engineering, University of Ruhuna
 
-[![Node.js 18+](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
-[![Express.js](https://img.shields.io/badge/Framework-Express%204.19-lightgrey.svg)](https://expressjs.com/)
-[![MongoDB 3.4+](https://img.shields.io/badge/Database-MongoDB%203.4%2B-green.svg)](https://www.mongodb.com/)
-[![Mongoose ODM](https://img.shields.io/badge/ODM-Mongoose%205.13-red.svg)](https://mongoosejs.com/)
-[![Automated Tests](https://img.shields.io/badge/Node%20Tests-186%2F186%20Passed-brightgreen.svg)](package.json)
-[![Academic License](https://img.shields.io/badge/License-Academic%20Project-purple.svg)]()
-
-A centralized, real-time three-phase electrical energy monitoring, anomaly detection, and analytics web portal developed for the **Faculty of Engineering, University of Ruhuna** (Hapugala, Galle, Sri Lanka).
-
-This project is an independent **Node.js + Express + MongoDB** application engineered for university electrical facilities management, telemetry supervision, and academic energy auditing.
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Express.js](https://img.shields.io/badge/Express.js-4.19-000000?logo=express&logoColor=white)](https://expressjs.com/)
+[![MongoDB](https://img.shields.io/badge/MongoDB%20Atlas-4.4%2B-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com/atlas)
+[![Mongoose](https://img.shields.io/badge/Mongoose-5.13-880000)](https://mongoosejs.com/)
+[![Render](https://img.shields.io/badge/Deploy-Render-46E3B7?logo=render&logoColor=black)](https://render.com)
+[![Vercel](https://img.shields.io/badge/Deploy-Vercel-000000?logo=vercel&logoColor=white)](https://vercel.com)
+[![Automated Tests](https://img.shields.io/badge/Tests-187%20Passed-brightgreen)](package.json)
+[![Course](https://img.shields.io/badge/Module-EE4207-blue)](docs/EE4207_FINAL_PROJECT_REPORT.md)
 
 ---
 
-## ⚡ 1. Project Overview & Engineering Objectives
+### Project Metadata
 
-The system provides centralized SCADA-like supervision of electrical consumption, power quality, and operational costs across the academic and administrative complexes of the Faculty of Engineering, University of Ruhuna.
-
-### Specific Engineering Objectives:
-1. **Real-Time Telemetry Supervision**: Continuously supervise balanced three-phase electrical telemetry ($400\text{ V Line-to-Line}$, $50.0\text{ Hz}$). Six core campus buildings are seeded idempotently, with administrative capabilities to dynamically add, edit, and safely manage additional facilities.
-2. **Three-Phase AC Electrical Modeling**: Full AC power triangle calculations ($S = \sqrt{3} V_L I_L$, $P = S \times \text{PF}$, $Q = \sqrt{S^2 - P^2}$) and discrete Riemann trapezoidal energy integration with missing telemetry gap protection ($>60\text{s}$ sensor blackout guard).
-3. **Automated Anomaly & Safety Alerting**: Real-time state-machine alert engine continuously tracking 8 critical abnormal electrical conditions: Undervoltage ($<380\text{V}$), Overvoltage ($>420\text{V}$), Low Power Factor ($<0.85$), Frequency Excursions ($<49.5\text{Hz}$ or $>50.5\text{Hz}$), Feeder High Load ($>90\%$), Feeder Overload ($>100\%$), and Sensor Offline ($>60\text{s}$). Duplicate alerts are suppressed and auto-cleared when conditions normalize.
-4. **Institutional Demonstration Tariff & Efficiency Analysis**: Two-part industrial/commercial tariff modeling (energy charge, peak demand charge, and fixed monthly charge) with automated after-hours consumption tracking (08:00–17:00 weekdays).
-5. **Role-Based Access Control (RBAC) & Security**: Cryptographic session authentication with MongoDB session store (`connect-mongo`), `bcryptjs` password hashing, and custom double-submit cookie CSRF defense.
-6. **Formal Audit Reporting & Export**: 16-parameter energy audit summaries, raw CSV telemetry streaming, and official university-branded printable PDF reports.
-7. **Academic Transparency**: All simulated telemetry is explicitly tagged `SIMULATED` across the UI, API responses, CSV downloads, and audit reports.
-
----
-
-## 🛠️ 2. Technology Stack
-
-### Backend Architecture
-- **Runtime Environment**: Node.js (v18+)
-- **Application Framework**: Express.js (v4.19+)
-- **Database Engine**: MongoDB Server (v3.4+)
-- **Object Data Modeling (ODM)**: Mongoose (v5.13+)
-- **Templating Engine**: Nunjucks (v3.2+) with Jinja2 compatibility hooks
-- **Session Management**: `express-session` with `connect-mongo` (v3.2+)
-- **Password Security**: `bcryptjs` (v2.4+) with salted SHA-512 derivation
-- **CSRF Defense**: Cryptographic double-submit cookie & request-body verification middleware
-
-### Frontend Presentation Layer
-- **HTML5 & Vanilla CSS3**: Dark mode engineering aesthetic (`#0b1121`), glassmorphism, responsive CSS Grid / Flexbox, and `@media print` styling
-- **Vanilla JavaScript (ES6+)**: Fetch API, 5-second asynchronous polling, dynamic DOM updates, and client-side form validation
-- **Chart.js (v4.4+)**: Real-time sliding-window line charts and departmental comparison bar charts
+| Attribute | Details |
+|---|---|
+| **Course Module** | EE4207 — Web Application Development |
+| **Project Title** | Smart Energy Monitoring and Analytics System |
+| **Author** | K.A.W.R.K.B. Kohona |
+| **Student Registration Index** | EG/2023/5685 |
+| **Department** | Department of Electrical and Information Engineering |
+| **Faculty** | Faculty of Engineering |
+| **University** | University of Ruhuna (Hapugala, Galle, Sri Lanka) |
+| **Academic Year** | 2025/2026 (Semester 8) |
 
 ---
 
-## 🏗️ 3. System Architecture
+### Deployment & Live Access
 
-```text
-  +-------------------------------------------------------------------------+
-  |              Node.js Three-Phase Telemetry Simulator                    |
-  |                      (node_backend/simulator.js)                       |
-  |  - Balanced 400V / 50Hz Generator                                       |
-  |  - Diurnal Load Curves (08:00-17:00 Working Peak vs Night Baseline)     |
-  |  - Apparent (kVA), Active (kW), Reactive (kVAr) & Incremental kWh       |
-  |  - Automated Alert Evaluation via alertEngine.js                        |
-  |  - Controlled Anomaly Injection (--anomaly LOW_PF, LOW_VOLTAGE, etc.)   |
-  +-------------------------------------------------------------------------+
-                                       │
-                                       ▼ (Direct Mongoose Inserts)
-  +-------------------------------------------------------------------------+
-  |                  MongoDB Database (ruhuna_energy)                       |
-  |                       Compatible with MongoDB 3.4+                      |
-  |  - buildings       : 6 Core Campus Complexes + Dynamic Admin Facilities |
-  |  - users           : Administrator / Viewer with bcrypt hashed passwords|
-  |  - energy_readings : Timestamped 3-phase records, marked SIMULATED      |
-  |  - alerts          : Active / Cleared State-Machine Anomaly Log         |
-  |  - tariffs         : Configurable Demonstration Institutional Tariff    |
-  |  - faculty_settings: Operating Hours & Faculty Schedule Parameters      |
-  |  - sessions        : MongoStore Server-Side Encrypted Sessions          |
-  +-------------------------------------------------------------------------+
-                      ▲                                     ▲
-                      │ (Reads Telemetry)                   │ (Writes / Ack)
-  +-------------------------------------------------------------------------+
-  |                   Node.js Express Web Backend                           |
-  |             (node_backend/server.js, node_backend/app.js)               |
-  |  - MongoStore Session Management (SESSION_SECRET)                       |
-  |  - Role-Based Access Control (requireAuth, requireAdmin)                |
-  |  - CSRF Token Generation & Dual-Validation Middleware                   |
-  |  - Analytics Service & Report Computation (analyticsService.js)        |
-  |  - REST APIs: /api/energy/live, /api/energy/analytics, /api/alerts,     |
-  |               /api/energy/cost, /api/reports/summary, CSV export        |
-  +-------------------------------------------------------------------------+
-                                       │
-                                       ▼ (JSON / Nunjucks Server-Side Render)
-  +-------------------------------------------------------------------------+
-  |                       Web Browser User Interface                        |
-  |  - /dashboard        : Live Substation Monitor & 5s Chart.js Polling    |
-  |  - /analytics        : Historical Electrical Hub & Load Factor Analysis |
-  |  - /alerts           : Safety Alert Engine & One-Click Acknowledgment   |
-  |  - /cost-efficiency  : Demonstration Tariff Calculator & Rankings       |
-  |  - /reports          : 16-Metric Audit Summaries & CSV Export           |
-  |  - /reports/printable: Official University-Formatted Printable Audit    |
-  +-------------------------------------------------------------------------+
+| Resource | URL / Configuration |
+|---|---|
+| **Live Production Deployment (Render)** | [https://smart-energy-system-zuqh.onrender.com](https://smart-energy-system-zuqh.onrender.com) |
+| **Edge Routing & Proxy (Vercel)** | Configured via `vercel.json` rewrites to Render backend |
+| **Source Code Repository** | [https://github.com/rusirukanchana50/Smart-Energy-System.git](https://github.com/rusirukanchana50/Smart-Energy-System.git) |
+
+#### Pre-Configured Test Credentials
+
+The system automatically initializes default accounts at startup with salted `bcrypt` password hashing:
+
+| Account Role | Email | Password | Access Privileges |
+|---|---|---|---|
+| **Administrator** | `admin@eng.ruh.ac.lk` | `Admin@1234` | Full access: Facility CRUD, alert acknowledgment, tariff adjustments, simulation purging |
+| **Viewer** | `viewer@eng.ruh.ac.lk` | `Viewer@1234` | Read-only access: Live monitoring, historical analytics, audit reports, CSV downloads |
+
+---
+
+## 1. Project Abstract & Objectives
+
+The **Smart Energy Monitoring and Analytics System** is a full-stack engineering software solution developed to address the limitations of conventional bulk utility billing in educational institutions. In traditional setups, university administrations receive a single aggregate monthly electricity bill from the Ceylon Electricity Board (CEB), which provides no real-time departmental visibility, power quality tracking, or immediate notification of abnormal electrical conditions.
+
+This system provides continuous three-phase electrical telemetry monitoring, automated safety anomaly detection across 8 critical electrical conditions, discrete numerical energy integration, two-part institutional electricity cost estimation, and formal academic audit reporting.
+
+### Key Engineering Objectives:
+1. **Three-Phase Electrical Modeling**: Calculate Apparent Power ($S$), Active Power ($P$), Reactive Power ($Q$), and displacement Power Factor ($\text{PF}$) according to standard AC power equations ($400\text{ V}$ Line-to-Line, $50\text{ Hz}$).
+2. **Discrete Numerical Energy Integration**: Implement numerical trapezoidal integration across contiguous time samples with gap protection ($>60\text{s}$) to avoid artificial energy inflation during telemetry interruptions.
+3. **Automated Safety Anomaly Engine**: Evaluate 8 electrical threshold conditions (undervoltage, overvoltage, low power factor, frequency excursions, high load, feeder overload, and sensor offline states) with duplicate suppression and auto-clearing logic.
+4. **Institutional Tariff & Cost Estimation**: Model commercial two-part tariffs incorporating active energy consumption charges ($\text{LKR/kWh}$), peak demand charges ($\text{LKR/kW}$), and monthly fixed charges, alongside after-hours consumption tracking (08:00–17:00 weekdays).
+5. **Secure Facility Management (CRUD)**: Enable administrators to register, modify, and safely delete facilities, with dependency checks preventing accidental data corruption.
+6. **Academic Transparency**: All generated telemetry readings are explicitly labeled `SIMULATED` across user interfaces, API payloads, and exported audit documents to maintain scientific integrity.
+
+---
+
+## 2. System Architecture & Technologies
+
+The system is constructed with a modular multi-tier architecture separating data acquisition, persistent storage, business logic, and presentation:
+
+```
++-------------------------------------------------------------------------+
+|                  Three-Phase Telemetry Simulator                        |
+|                    (node_backend/simulator.js)                          |
+|  - Balanced 400 V / 50 Hz three-phase generator                         |
+|  - Diurnal academic load profiles (lecture/lab hours vs night baseload) |
+|  - Real-time alert evaluation via alertEngine.js                        |
+|  - Anomaly injection for testing (--anomaly LOW_PF, OVERLOAD, etc.)     |
++-------------------------------------------------------------------------+
+                                    │
+                                    ▼ (Mongoose Document Writes)
++-------------------------------------------------------------------------+
+|                Database Layer (MongoDB Atlas / Local)                   |
+|  - buildings       : Facility records, rated power capacities           |
+|  - energy_readings : Time-series electrical telemetry (V, I, PF, P, Q)  |
+|  - alerts          : Active and cleared threshold violations            |
+|  - tariffs         : Configurable demonstration institutional tariff    |
+|  - faculty_settings: Standard university operating schedules            |
+|  - sessions        : Encrypted user sessions (connect-mongo)            |
++-------------------------------------------------------------------------+
+                                    │
+                                    ▼ (REST API / Server Rendering)
++-------------------------------------------------------------------------+
+|                   Application Server (Express.js)                       |
+|  - Session management and RBAC middleware (Administrator / Viewer)      |
+|  - Cryptographic double-submit cookie CSRF protection                   |
+|  - Numerical aggregation and load factor derivations                    |
+|  - Nunjucks template rendering with server-side layout composition      |
++-------------------------------------------------------------------------+
+                                    │
+                                    ▼ (HTTP / JSON / HTML)
++-------------------------------------------------------------------------+
+|                       Client User Interface                             |
+|  - /dashboard        : Live substation monitoring (5s polling)          |
+|  - /analytics        : Historical telemetry and multi-building comparison|
+|  - /alerts           : Safety violations center & alert acknowledgment  |
+|  - /cost-efficiency  : Two-part tariff cost calculator and rankings     |
+|  - /reports          : 16-parameter audit reports & CSV downloads       |
+|  - /reports/printable: Print-optimized official PDF report layout       |
++-------------------------------------------------------------------------+
 ```
 
+### Technology Stack Specifications
+
+- **Backend Runtime**: Node.js (v18+ LTS)
+- **Web Application Framework**: Express.js (v4.19+)
+- **Database Engine**: MongoDB Atlas (Cloud Production) / MongoDB Community Server (Local Development)
+- **Object-Document Mapper (ODM)**: Mongoose (v5.13+)
+- **Template Engine**: Nunjucks (v3.2+) with custom filters and Jinja2 compatibility hooks
+- **Session Store**: `express-session` with `connect-mongo` for server-side persistence
+- **Password Security**: `bcryptjs` with salt rounds (cost factor 10)
+- **CSRF Defense**: Cryptographic double-submit cookie with origin validation (`req.headers.origin` and `Referer`)
+- **Frontend Presentation**: Semantic HTML5, Vanilla CSS3 (Custom Properties, Grid, Flexbox, `@media print`), Vanilla ES6+ JavaScript
+- **Data Visualization**: Chart.js (v4.4+) for real-time and comparative time-series graphs
+- **Hosting Targets**:
+  - **Render**: Node.js Web Service (host of application server and continuous telemetry simulator)
+  - **Vercel**: Edge routing proxy directing traffic to the backend host
+
 ---
 
-## 📁 4. Project Directory Structure
+## 3. Electrical Engineering Formulations
+
+The analytical module calculates standard power engineering quantities for balanced three-phase AC circuits:
+
+| Quantity | Mathematical Equation | System Unit |
+|---|---|---|
+| **Apparent Power ($S$)** | $S = \frac{\sqrt{3} \times V_L \times I_L}{1000}$ | $\text{kVA}$ |
+| **Active Power ($P$)** | $P = S \times \text{PF} = \frac{\sqrt{3} \times V_L \times I_L \times \cos\theta}{1000}$ | $\text{kW}$ |
+| **Reactive Power ($Q$)** | $Q = \sqrt{S^2 - P^2} = S \times \sqrt{1 - \text{PF}^2}$ | $\text{kVAr}$ |
+| **Discrete Energy ($\Delta E$)** | $\Delta E_i = \left(\frac{P_{i-1} + P_i}{2}\right) \times \left(\frac{\Delta t_i}{3600}\right)$ | $\text{kWh}$ |
+| **Coincident Campus Peak** | $P_{\text{peak}} = \max\left(\sum_{k=1}^{M} P_{k}(t)\right)$ | $\text{kW}$ |
+| **Campus Average Demand** | $P_{\text{avg}} = \frac{1}{T} \sum_{t=1}^{T} P_{\text{campus}}(t) \le P_{\text{peak}}$ | $\text{kW}$ |
+| **Load Factor ($\text{LF}$)** | $\text{LF} = \frac{P_{\text{avg}}}{P_{\text{peak}}} \quad (0.0 \le \text{LF} \le 1.0)$ | Dimensionless |
+| **Two-Part Cost Model** | $\text{Cost} = (E \times R_E) + \left[ (P_{\text{peak}} \times R_D + R_F) \times \frac{\text{Days}}{30} \right]$ | $\text{LKR}$ |
+
+*For full mathematical derivations and edge-case boundary proofs, see [FORMULAS.md](docs/FORMULAS.md).*
+
+---
+
+## 4. Electrical Anomaly Detection Matrix
+
+The alert engine continuously evaluates incoming telemetry against statutory and operational thresholds:
+
+| Condition | Threshold Trigger | Severity | Action / Operational Consequence |
+|---|---|---|---|
+| **Severe Undervoltage** | $V_L < 380.0\text{ V}$ ($-5.0\%$ of $400\text{ V}$) | `CRITICAL` | Risk of motor overheating and controller resets |
+| **Grid Overvoltage** | $V_L > 420.0\text{ V}$ ($+5.0\%$ of $400\text{ V}$) | `CRITICAL` | Insulation breakdown and capacitor degradation |
+| **Low Power Factor** | $\text{PF} < 0.850$ | `WARNING` | CEB statutory billing penalties; high reactive losses |
+| **High Frequency** | $f > 50.50\text{ Hz}$ | `WARNING` | Grid over-frequency event |
+| **Low Frequency** | $f < 49.50\text{ Hz}$ | `WARNING` | Grid under-frequency event |
+| **High Feeder Load** | $P > 90\%$ of rated capacity | `WARNING` | Approaching thermal design limit of feeder cables |
+| **Feeder Overload** | $P > 100\%$ of rated capacity | `CRITICAL` | Imminent circuit breaker trip hazard |
+| **Telemetry Offline** | $\Delta t > 60.0\text{ s}$ elapsed silence | `WARNING` | Sensor blackout or communications loss |
+
+---
+
+## 5. Repository Directory Structure
 
 ```text
 Ruhuna Smart Energy System NodeJS/
-├── docs/                               # Engineering documentation & academic viva notes
+├── docs/                               # Academic and technical documentation
 │   ├── DATABASE_SCHEMA.md              # MongoDB collections, Mongoose schemas & indexes
-│   ├── DEMO_CHECKLIST.md               # Step-by-step viva & demonstration checklist
-│   ├── DEMO_MODE.md                    # Anomaly injection commands & demo guide
+│   ├── DEMO_CHECKLIST.md               # Step-by-step viva & demonstration guide
+│   ├── DEMO_MODE.md                    # Anomaly injection commands & test procedure
 │   ├── EE4207_FINAL_PROJECT_REPORT.md  # Comprehensive academic project report
-│   ├── FORMULAS.md                     # Electrical formulations & derivations
-│   ├── LIMITATIONS_AND_FUTURE_WORK.md  # Real IoT hardware roadmap & future expansion
-│   ├── PROJECT_STRUCTURE.md            # In-depth architectural layout & component map
+│   ├── FORMULAS.md                     # Electrical derivations & numerical integration
+│   ├── LIMITATIONS_AND_FUTURE_WORK.md  # Physical IoT hardware migration roadmap
+│   ├── PROJECT_STRUCTURE.md            # Detailed structural and component overview
 │   ├── SYSTEM_ARCHITECTURE.md          # Multi-tier SCADA architecture details
-│   └── VIVA_NOTES.md                   # Viva defense guide & anticipated questions
+│   └── VIVA_NOTES.md                   # Technical Q&A guide for project evaluation
 │
-├── frontend/                           # Presentation layer assets and templates
+├── frontend/                           # Presentation layer
 │   ├── static/
 │   │   ├── css/
-│   │   │   └── style.css               # Dark theme stylesheet & @media print rules
+│   │   │   └── style.css               # Dark theme stylesheet & @media print styles
 │   │   └── js/
-│   │       ├── alerts.js               # Anomaly supervision & RBAC acknowledgment
-│   │       ├── analytics.js            # Historical analytics, date presets & charts
-│   │       ├── auth.js                 # Login validation & password visibility toggle
-│   │       ├── cost_efficiency.js      # Two-part tariff cost calculator & bar charts
-│   │       ├── dashboard.js            # 5s live polling, KPI cards & live canvas
+│   │       ├── alerts.js               # Anomaly handling & acknowledgment logic
+│   │       ├── analytics.js            # Historical analytics & Chart.js controllers
+│   │       ├── auth.js                 # Login validation & password visibility toggles
+│   │       ├── cost_efficiency.js      # Two-part tariff calculations & rankings
+│   │       ├── dashboard.js            # 5-second asynchronous telemetry polling
 │   │       └── reports.js              # 16-parameter audit reports & CSV downloads
-│   └── templates/                      # Server-side Nunjucks HTML templates
-│       ├── alerts.html                 # Safety violations center & alert logs
-│       ├── analytics.html              # Historical telemetry & load factor views
-│       ├── cost_efficiency.html        # Energy cost & department efficiency views
-│       ├── dashboard.html              # Primary live substation monitoring dashboard
+│   └── templates/                      # Server-side rendered Nunjucks HTML templates
+│       ├── alerts.html                 # Safety violations center
+│       ├── analytics.html              # Historical telemetry & comparative views
+│       ├── cost_efficiency.html        # Departmental cost & efficiency analytics
+│       ├── dashboard.html              # Main substation monitoring dashboard
 │       ├── login.html                  # University-branded login portal
-│       ├── printable_report.html       # Official printable energy audit report
+│       ├── printable_report.html       # Print-optimized audit document layout
 │       └── reports.html                # Energy audit center & CSV export
 │
-├── node_backend/                       # Core Node.js / Express application logic
+├── node_backend/                       # Application logic
 │   ├── app.js                          # Express application configuration & middleware
-│   ├── create_user.js                  # CLI tool to provision Administrator / Viewer
+│   ├── create_user.js                  # CLI utility for provisioning users
 │   ├── init_db.js                      # Idempotent campus building database seeder
-│   ├── server.js                       # HTTP server entrypoint (listens on PORT 5000)
+│   ├── server.js                       # Server entrypoint and background simulator worker
 │   ├── simulator.js                    # Three-phase telemetry generator & alert evaluator
 │   ├── config/
-│   │   └── db.js                       # Mongoose MongoDB connection & error handlers
+│   │   └── db.js                       # Mongoose MongoDB connection & lifecycle handlers
 │   ├── middleware/
-│   │   ├── auth.js                     # requireAuth & requireAdmin RBAC guards
-│   │   └── csrf.js                     # Double-submit cookie CSRF defense
-│   ├── models/
-│   │   ├── Alert.js                    # Alert model & active state-machine tracking
-│   │   ├── Building.js                 # Building model (code, rated power, is_core)
-│   │   ├── EnergyReading.js            # Telemetry model (V, I, PF, S, P, Q, kWh)
-│   │   ├── FacultySetting.js           # Faculty operating hours configuration
-│   │   ├── index.js                    # Unified models export
-│   │   ├── Tariff.js                   # Demonstration institutional tariff schema
-│   │   └── User.js                     # User model with bcrypt password hashing
-│   ├── routes/
-│   │   ├── alerts.js                   # /api/alerts & acknowledgment endpoints
-│   │   ├── auth.js                     # /login, /logout, /api/auth/me endpoints
-│   │   ├── buildings.js                # /api/buildings CRUD & deletion safety endpoints
-│   │   ├── energy.js                   # /api/energy/live, /history, /analytics, /cost
-│   │   ├── pages.js                    # Server-side rendered views (/dashboard, etc.)
-│   │   └── reports.js                  # /api/reports/summary, /reports/printable, CSV
+│   │   ├── auth.js                     # Authentication and RBAC guards
+│   │   └── csrf.js                     # Double-submit cookie & origin verification
+│   ├── models/                         # Mongoose document schemas
+│   │   ├── Alert.js                    # Electrical alerts collection
+│   │   ├── Building.js                 # Campus facilities collection
+│   │   ├── EnergyReading.js            # Telemetry readings collection
+│   │   ├── FacultySetting.js           # Operational schedule settings
+│   │   ├── index.js                    # Model registry export
+│   │   ├── Tariff.js                   # Demonstration institutional tariff collection
+│   │   └── User.js                     # User accounts with bcrypt hashing
+│   ├── routes/                         # Express route definitions
+│   │   ├── alerts.js                   # Alert retrieval and acknowledgment endpoints
+│   │   ├── auth.js                     # Authentication and session lifecycle
+│   │   ├── buildings.js                # Building CRUD and dependency-safe deletion
+│   │   ├── energy.js                   # Telemetry, history, analytics, and cost APIs
+│   │   ├── pages.js                    # Page render controllers
+│   │   └── reports.js                  # Audit summaries and CSV streaming
 │   ├── services/
-│   │   ├── alertEngine.js              # Real-time electrical threshold checking engine
-│   │   └── analyticsService.js         # AC electrical math, trapezoidal integration & KPIs
-│   └── tests/                          # Automated JavaScript test suites (Node.js test runner)
-│       ├── phase2.test.js              # Models, indexes & DB initialization tests
-│       ├── phase3a.test.js             # Authentication, sessions & RBAC tests
-│       ├── phase3b.test.js             # Building CRUD & deletion safeguards tests
-│       ├── phase4.test.js              # Simulator math & alert engine anomaly tests
-│       ├── phase5.test.js              # Historical analytics, costs, & reports tests
-│       ├── phase6a.test.js             # Nunjucks template rendering & routing tests
-│       ├── phase6b.test.js             # Live dashboard & building management tests
-│       └── phase6c.test.js             # Frontend integration, reports, & tariff tests
+│   │   ├── alertEngine.js              # Threshold evaluation and alert state machine
+│   │   └── analyticsService.js         # AC formulas, integration, and KPI derivations
+│   └── tests/                          # Automated Node.js test suites
+│       ├── phase2.test.js              # Model validation, indexes, and initializers
+│       ├── phase3a.test.js             # Authentication, RBAC, and CSRF protection
+│       ├── phase3b.test.js             # Building CRUD and deletion safeguards
+│       ├── phase4.test.js              # AC formulas, simulator, and alert engine
+│       ├── phase5.test.js              # Analytics, coincident peak, and tariff tests
+│       ├── phase6a.test.js             # Routing, template rendering, and access control
+│       ├── phase6b.test.js             # Live dashboard and building management
+│       └── phase6c.test.js             # Analytics, alerts, and report frontend integration
 │
 ├── .env.example                        # Template environment variables
-├── .gitignore                          # Git ignore rules for Node.js / MongoDB
-├── package.json                        # Node.js project manifest & npm scripts
-├── package-lock.json                   # Deterministic dependency lockfile
-└── README.md                           # Master project documentation
+├── package.json                        # Node.js project manifest & scripts
+├── vercel.json                         # Vercel proxy rewrite configuration
+└── README.md                           # Master documentation
 ```
 
 ---
 
-## 🚀 5. Getting Started
+## 6. Local Installation & Development Setup
 
 ### Prerequisites
 - **Node.js**: v18.0.0 or higher
 - **npm**: v9.0.0 or higher
-- **MongoDB Server**: v3.4 or higher running on `mongodb://127.0.0.1:27017`
+- **MongoDB**: Local MongoDB Server (v4.4+) running on `mongodb://127.0.0.1:27017` or a MongoDB Atlas connection URI
 
 ### Step 1: Install Dependencies
 ```powershell
-npm.cmd install
+npm install
 ```
 
 ### Step 2: Configure Environment Variables
@@ -200,134 +261,109 @@ Copy `.env.example` to create `.env`:
 ```powershell
 Copy-Item .env.example .env
 ```
-Ensure your MongoDB connection string in `.env` is configured (defaults to `mongodb://127.0.0.1:27017/ruhuna_energy`).
+Ensure `MONGODB_URI` points to your active database instance (e.g., `mongodb://127.0.0.1:27017/ruhuna_energy`).
 
-### Step 3: Initialize MongoDB Collections
-Seed the 6 core campus buildings (idempotent, safe to run repeatedly without duplicate creation):
+### Step 3: Initialize Database Collections
+Seed the 6 initial campus buildings (idempotent, safe to run repeatedly without creating duplicates):
 ```powershell
-npm.cmd run init-db
+npm run init-db
 ```
 
-### Step 4: Create User Accounts
-Create an **Administrator** or **Viewer** account:
+### Step 4: Provision User Accounts
+Run the interactive account creation utility:
 ```powershell
-npm.cmd run create-user
+npm run create-user
 ```
-Or run non-interactively:
-```powershell
-node node_backend/create_user.js --email admin@eng.ruh.ac.lk --name "Faculty Admin" --role Administrator --password adminpassword
-node node_backend/create_user.js --email viewer@eng.ruh.ac.lk --name "Faculty Viewer" --role Viewer --password viewerpassword
-```
+Alternatively, default administrator (`admin@eng.ruh.ac.lk` / `Admin@1234`) and viewer (`viewer@eng.ruh.ac.lk` / `Viewer@1234`) accounts are automatically verified and created when the web server boots.
 
 ### Step 5: Start the Telemetry Simulator
-Open a terminal and start the continuous three-phase simulator:
+In a separate terminal, start the three-phase simulation process:
 ```powershell
-npm.cmd run simulator
-```
-*Tip: To run a single telemetry cycle:*
-```powershell
-node node_backend/simulator.js --once
+npm run simulator
 ```
 
-### Step 6: Start the Web Application
-Open a second terminal and start the Express web server:
+### Step 6: Start the Express Application Server
+In the primary terminal, start the server:
 ```powershell
-npm.cmd start
+npm start
 ```
-The server will bind to `http://localhost:5000`.
-
-### Step 7: Open the Portal
-Navigate to:
-```text
-http://localhost:5000
-```
-Log in using your provisioned Administrator or Viewer credentials.
+The application will listen on `http://localhost:5000`. Navigate to this address in any modern web browser to access the system.
 
 ---
 
-## 🧪 6. Automated Testing
+## 7. Automated Testing & Verification
 
-The project includes **8 automated test suites** built on Node's native test runner (`node:test` and `node:assert`). All tests run sequentially against an isolated MongoDB test environment (`ruhuna_energy_test`) to verify complete system behavior.
+The system includes **8 comprehensive test suites** implemented with Node's native test runner (`node:test` and `node:assert`). All tests run against an isolated test database (`ruhuna_energy_test`) to verify complete end-to-end functionality without affecting production data.
 
-### Run All 184 Automated Tests:
+### Execute Master Test Suite:
 ```powershell
-npm.cmd test
+npm test
 ```
 
-### Individual Test Suites:
-| Test Command | Test Suite Description | Test Count |
-|---|---|:---:|
-| `npm.cmd run test:phase2` | MongoDB Connection, Building/User Models, Idempotent Seeding | 16 |
-| `npm.cmd run test:phase3a` | Authentication, RBAC Security, CSRF Defense, Zero Secret Leakage | 16 |
-| `npm.cmd run test:phase3b` | Building CRUD, Unique Indexes, Dependency Integrity & Deletion Safeguards | 31 |
-| `npm.cmd run test:phase4` | Three-Phase AC Formulas, Simulator Cycles, Alert Engine Anomalies | 23 |
-| `npm.cmd run test:phase5` | Historical Analytics, Load Factor, Tariff Cost & 16-Metric Audit | 22 |
-| `npm.cmd run test:phase6a` | Nunjucks Template Rendering, Static Serving, Unauth Protection & Login Alerts | 28 |
-| `npm.cmd run test:phase6b` | Live Dashboard Contract, Role-Based UI Controls, Safe Building Deletion | 25 |
-| `npm.cmd run test:phase6c` | Analytics, Alerts, Cost/Efficiency & Reports Frontend Integration | 25 |
-| **Total** | **Full System Automated Verification** | **186 Passed** |
+### Test Suite Breakdown:
+
+| Suite | Focus Area | Assertions & Scenarios Tested | Count | Status |
+|---|---|---|:---:|:---:|
+| `phase2.test.js` | Data Modeling & Seeding | Mongoose schemas, unique indexes, validation constraints, idempotent seeding | 16 | Passed |
+| `phase3a.test.js` | Authentication & Security | Bcrypt hashing, sessions, RBAC restrictions, CSRF tokens, zero secret leakage | 16 | Passed |
+| `phase3b.test.js` | Building CRUD Safeguards | Name/code validation, rated capacity boundaries, dependency-checked deletion | 31 | Passed |
+| `phase4.test.js` | Simulator & Alert Engine | Three-phase AC math, diurnal factors, 8 anomaly types, auto-clearing logic | 23 | Passed |
+| `phase5.test.js` | Analytics & Tariff Math | Riemann integration, coincident peak demand, tariff pro-rating, 16 audit KPIs | 26 | Passed |
+| `phase6a.test.js` | Routing & Templates | Server-side rendering, Nunjucks filters, unauthenticated route protection | 25 | Passed |
+| `phase6b.test.js` | Dashboard & UI Controls | Live data API contract, role-specific DOM controls, safe deletion dialogs | 25 | Passed |
+| `phase6c.test.js` | Frontend Integration | Analytics filters, alert acknowledgments, report generation, CSV streaming | 25 | Passed |
+| **Total** | **Full System Verification** | **187 Automated Tests Across All Modules** | **187** | **100% Pass** |
 
 ---
 
-## 📊 7. REST API Endpoints Reference
+## 8. REST API Reference
 
-### Authentication & Sessions
-- `POST /login` — Authenticate user and issue encrypted session cookie + CSRF token
-- `POST /logout` — Destroy session and clear session cookie
-- `GET /api/auth/me` — Retrieve active user session profile and CSRF token
+### Authentication & Session Management
+- `POST /login` — Authenticate credentials and establish an encrypted session cookie + CSRF token.
+- `POST /logout` — Invalidate user session and clear authentication cookies.
+- `GET /api/auth/me` — Return the authenticated user profile and current CSRF token.
 
 ### Building Management
-- `GET /api/buildings` — List all campus buildings (Authenticated)
-- `POST /api/buildings/create` — Register new facility (Administrator + CSRF)
-- `POST /api/buildings/:id/update` — Update facility details (Administrator + CSRF)
-- `GET /api/buildings/:id/delete-preview` — Inspect building dependencies before deletion (Administrator)
-- `POST /api/buildings/:id/delete` — Safely delete non-core facility without dependencies (Administrator + CSRF)
-- `POST /api/buildings/:id/delete-simulated` — Purge demonstration facility & its simulated readings (Administrator + CSRF)
+- `GET /api/buildings` — Retrieve all registered university facilities.
+- `POST /api/buildings/create` — Register a new facility (Administrator + CSRF).
+- `POST /api/buildings/:id/update` — Modify facility properties (Administrator + CSRF).
+- `GET /api/buildings/:id/delete-preview` — Inspect associated telemetry dependencies before deletion (Administrator).
+- `POST /api/buildings/:id/delete` — Delete facility only if no historical dependencies exist (Administrator + CSRF).
+- `POST /api/buildings/:id/delete-simulated` — Purge demonstration facility alongside its simulated readings (Administrator + CSRF).
 
-### Telemetry & Live Supervision
-- `GET /api/energy/live` — 5-second live telemetry payload for all active campus buildings
-- `GET /api/energy/history` — Historical time-series telemetry filtered by building and time window
-- `GET /api/energy/analytics` — Campus-wide or single-building operational KPIs & load factors
-- `GET /api/energy/cost` — Two-part tariff cost analysis and breakdown
-- `GET /api/energy/efficiency` — Operating efficiency indicators & after-hours consumption
-- `GET /api/energy/efficiency/comparison` — Departmental efficiency comparative rankings
+### Telemetry & Real-Time Monitoring
+- `GET /api/energy/live` — Retrieve live three-phase telemetry payload for all active facilities.
+- `GET /api/energy/history` — Query time-series telemetry filtered by building and date range.
+- `GET /api/energy/analytics` — Calculate facility and university-wide operational KPIs and load factors.
+- `GET /api/energy/cost` — Compute two-part institutional tariff breakdowns and after-hours energy.
+- `GET /api/energy/efficiency` — Return power factor compliance and efficiency metrics.
+- `GET /api/energy/efficiency/comparison` — Return comparative efficiency rankings across campus complexes.
 
-### Alerts & Safety Supervision
-- `GET /api/alerts` — Active and historical electrical alerts with filter options
-- `POST /api/alerts/:id/acknowledge` — Acknowledge an active electrical safety alert (Administrator + CSRF)
+### Safety Alerts & Anomaly Supervision
+- `GET /api/alerts` — Retrieve active and historical electrical alert records.
+- `POST /api/alerts/:id/acknowledge` — Formally acknowledge an active safety alert (Administrator + CSRF).
 
-### Audit Reports & Exports
-- `GET /api/reports/summary` — Full 16-parameter energy audit summary report
-- `GET /api/reports/export/csv` — Stream raw telemetry CSV export (labeled SIMULATED)
-- `POST /api/config/tariff` — Configure demonstration institutional tariff rates (Administrator + CSRF)
-- `GET /reports/printable` — Official university-branded printable PDF audit report view
-
----
-
-## 💡 8. Electrical Engineering Calculations & Formulas
-
-| Metric | Formula | Unit |
-|---|---|---|
-| **Apparent Power ($S$)** | $S = \frac{\sqrt{3} \times V_L \times I_L}{1000}$ | $\text{kVA}$ |
-| **Active Power ($P$)** | $P = S \times \text{PF}$ | $\text{kW}$ |
-| **Reactive Power ($Q$)** | $Q = \sqrt{S^2 - P^2} = S \times \sqrt{1 - \text{PF}^2}$ | $\text{kVAr}$ |
-| **Discrete Energy ($\Delta E$)** | $\Delta E = \frac{P_1 + P_2}{2} \times \frac{\Delta t}{3600}$ | $\text{kWh}$ |
-| **Load Factor ($\text{LF}$)** | $\text{LF} = \frac{P_{\text{avg}}}{P_{\text{peak}}}$ | Dimensionless $[0.0, 1.0]$ |
-| **Two-Part Energy Cost** | $\text{Cost} = (E \times \text{Rate}_E) + (P_{\text{peak}} \times \text{Rate}_D) + \text{Fixed Charge}$ | $\text{LKR}$ |
-
-*For complete mathematical derivations and edge-case handling rules, see [FORMULAS.md](docs/FORMULAS.md).*
+### Audit Reports & Data Export
+- `GET /api/reports/summary` — Generate 16-parameter institutional energy audit summary.
+- `GET /api/reports/export/csv` — Stream raw telemetry readings formatted as an RFC 4180 CSV export.
+- `POST /api/config/tariff` — Update demonstration institutional tariff parameters (Administrator + CSRF).
+- `GET /reports/printable` — Render print-optimized university audit report layout.
 
 ---
 
-## 📜 9. Academic Integrity & Verification
+## 9. Academic Transparency & Hardware Migration
 
-This system was created as an academic engineering project for the Faculty of Engineering, University of Ruhuna.
-- **Pure Node.js + Express + MongoDB stack**: Zero dependencies on Python, Flask, or SQLite.
-- **Honest Simulation Transparency**: Simulated data is explicitly marked `SIMULATED` across all UI views, JSON payloads, CSV downloads, and formal audit summaries.
-- **Hardware Integration Roadmap**: Designed with clean service interfaces to easily transition from the simulation engine to physical Schneider PM5350 / Eastron SDM630 Modbus-TCP and MQTT smart meters (see [LIMITATIONS_AND_FUTURE_WORK.md](docs/LIMITATIONS_AND_FUTURE_WORK.md)).
+This project was developed for academic evaluation in **EE4207: Web Application Development** at the **Faculty of Engineering, University of Ruhuna**.
+
+### Simulation Disclosure
+To enable complete testing without access to physical substation switchgear, all telemetry readings are generated via mathematical simulation models. Every user interface view, API response, CSV download, and printed audit document explicitly displays the label **`SIMULATED`** to preserve scientific integrity.
+
+### Hardware Migration Roadmap
+The software architecture decouples telemetry ingestion from persistence and presentation. In an operational physical deployment, `node_backend/simulator.js` can be replaced with an edge gateway service (e.g., Raspberry Pi or industrial edge controller) communicating with multi-function power meters (such as Schneider Electric PM5350 or Eastron SDM630) via Modbus-RTU over RS-485 or Modbus-TCP. The backend database schemas, analytical calculations, REST APIs, and frontend dashboards require no architectural redesign to transition to physical instrumentation.
 
 ---
 
-## 📄 License
+## 10. License
 
 Academic and Educational Use — Faculty of Engineering, University of Ruhuna, Sri Lanka.
+Developed for EE4207 (Web Application Development).
